@@ -292,50 +292,8 @@
                 
                 <div class="header-group">
                     <span class="header-group-label">서버</span>
-                    <button class="main-btn" onclick="loadSheetsFromFirestore()" style="background:var(--retro-blue);color:white;">불러오기</button>
-                    <div class="save-dropdown-wrapper">
-                        <button class="main-btn save-dropdown-btn" onclick="toggleSaveDropdown()" style="background:var(--retro-green);color:white;">
-                            저장 ▼
-                        </button>
-                        <div class="save-dropdown-menu" id="saveDropdownMenu">
-                            <div class="save-dropdown-item" onclick="saveCurrentSheetOnly()">
-                                <span class="save-icon">📄</span>
-                                <div class="save-item-content">
-                                    <div class="save-item-title">현재 시트 저장</div>
-                                    <div class="save-item-desc">열려있는 시트 1개</div>
-                                </div>
-                            </div>
-                            <div class="save-dropdown-item" onclick="saveCurrentFolderAll()">
-                                <span class="save-icon">📁</span>
-                                <div class="save-item-content">
-                                    <div class="save-item-title">현재 폴더 저장</div>
-                                    <div class="save-item-desc">폴더 + 내부 시트 모두</div>
-                                </div>
-                            </div>
-                            <div class="save-dropdown-item" onclick="saveAllToFirestore()">
-                                <span class="save-icon">📦</span>
-                                <div class="save-item-content">
-                                    <div class="save-item-title">전체 저장</div>
-                                    <div class="save-item-desc">모든 폴더 + 시트 저장</div>
-                                </div>
-                            </div>
-                            <div class="save-dropdown-item" onclick="saveRawFilesToFirestore()">
-                                <span class="save-icon">📋</span>
-                                <div class="save-item-content">
-                                    <div class="save-item-title">원본 파일 저장</div>
-                                    <div class="save-item-desc">업로드한 원본 데이터</div>
-                                </div>
-                            </div>
-                            <div class="save-dropdown-divider"></div>
-                            <div class="save-dropdown-item" onclick="openServerManager()">
-                                <span class="save-icon">🗑️</span>
-                                <div class="save-item-content">
-                                    <div class="save-item-title">서버 관리</div>
-                                    <div class="save-item-desc">서버 데이터 삭제/정리</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <button class="main-btn" onclick="simpleServerSave()" style="background:var(--retro-green);color:white;">⬆️ 저장</button>
+                    <button class="main-btn" onclick="simpleServerLoad()" style="background:var(--retro-blue);color:white;">⬇️ 불러오기</button>
                 </div>
             </div>
             
@@ -8160,13 +8118,68 @@ async function loadSheetsFromFirestore() {
     }
 }
 
-// ===== 저장 드롭다운 메뉴 =====
+// ===== 간단한 서버 저장/불러오기 =====
+
+// 서버 저장 (현재 탭 기준)
+async function simpleServerSave() {
+    if (!currentUser) {
+        toast('로그인이 필요합니다');
+        return;
+    }
+    if (!db) {
+        toast('Firebase가 초기화되지 않았습니다');
+        return;
+    }
+
+    switch (currentMainTab) {
+        case 'sheets':
+            await saveAllToFirestore();
+            break;
+        case 'files':
+            await saveAllToFirestore(); // 파일 보관함도 같이 저장됨
+            break;
+        case 'rawfiles':
+            await saveRawFilesToFirestore();
+            break;
+        default:
+            await saveAllToFirestore();
+    }
+}
+
+// 서버 불러오기 (현재 탭 기준)
+async function simpleServerLoad() {
+    if (!currentUser) {
+        toast('로그인이 필요합니다');
+        return;
+    }
+    if (!db) {
+        toast('Firebase가 초기화되지 않았습니다');
+        return;
+    }
+
+    switch (currentMainTab) {
+        case 'sheets':
+            await loadSheetsFromFirestore();
+            break;
+        case 'files':
+            await loadSheetsFromFirestore(); // 파일 보관함도 같이 불러옴
+            break;
+        case 'rawfiles':
+            await loadRawFilesFromFirestore();
+            break;
+        default:
+            await loadSheetsFromFirestore();
+    }
+}
+
+// ===== 저장 드롭다운 메뉴 (레거시) =====
 
 // 저장 드롭다운 토글
 function toggleSaveDropdown() {
     const menu = document.getElementById('saveDropdownMenu');
+    if (!menu) return;
     menu.classList.toggle('show');
-    
+
     // 외부 클릭 시 닫기
     if (menu.classList.contains('show')) {
         setTimeout(() => {
@@ -8177,6 +8190,7 @@ function toggleSaveDropdown() {
 
 function closeSaveDropdown(e) {
     const menu = document.getElementById('saveDropdownMenu');
+    if (!menu) return;
     const wrapper = document.querySelector('.save-dropdown-wrapper');
     if (wrapper && !wrapper.contains(e?.target)) {
         menu.classList.remove('show');
