@@ -12043,6 +12043,7 @@ function renderRawFilesList() {
                     </div>
                     <div class="raw-file-card-date">📅 ${lastUpdated}</div>
                     ${!rawFileSelectMode ? `<div class="raw-file-card-actions">
+                        <button onclick="event.stopPropagation(); showDuplicateDetectionModal('${safeFileName}')" title="중복 탐지">🔍</button>
                         <button class="copy-to-sheet" onclick="event.stopPropagation(); copyRawFileToSheets('${safeFileName}')" title="시트로 복사">📑 복사</button>
                         <button onclick="event.stopPropagation(); downloadRawFile('${safeFileName}')">다운로드</button>
                         <button class="danger" onclick="event.stopPropagation(); deleteRawFile('${safeFileName}')">삭제</button>
@@ -12072,6 +12073,7 @@ function renderRawFilesList() {
                         </div>
                     </div>
                     ${!rawFileSelectMode ? `<div class="raw-file-actions">
+                        <button class="raw-file-btn" onclick="event.stopPropagation(); showDuplicateDetectionModal('${safeFileName}')" title="중복 탐지">🔍</button>
                         <button class="raw-file-btn copy-to-sheet" onclick="event.stopPropagation(); copyRawFileToSheets('${safeFileName}')" title="시트로 복사">📑</button>
                         <button class="raw-file-btn" onclick="event.stopPropagation(); showRawFileHistory('${safeFileName}')" title="업로드 이력">📋</button>
                         <button class="raw-file-btn" onclick="event.stopPropagation(); downloadRawFile('${safeFileName}')">다운로드</button>
@@ -12819,6 +12821,369 @@ function loadRawFileFolders() {
         rawFileFolders = {};
         rawFileToFolder = {};
     }
+}
+
+// ========== 중복 행 탐지 시스템 ==========
+
+// 중복 탐지 결과 저장
+var duplicateResults = null;
+
+// 행을 문자열로 변환 (비교용)
+function rowToString(row) {
+    if (!row) return '';
+    return row.map(cell => {
+        if (cell === null || cell === undefined) return '';
+        return String(cell).trim();
+    }).join('|||');
+}
+
+// 완전 중복 탐지 (모든 열이 동일)
+function findExactDuplicates(fileName, sheetName) {
+    if (!rawFiles[fileName] || !rawFiles[fileName].sheets[sheetName]) {
+        return { duplicates: [], groups: [] };
+    }
+
+    const sheetData = rawFiles[fileName].sheets[sheetName];
+    const data = sheetData.data || [];
+
+    const rowMap = new Map(); // rowString -> [rowIndices]
+    const duplicates = [];
+    const groups = [];
+
+    data.forEach((row, idx) => {
+        const rowStr = rowToString(row);
+        if (!rowStr) return; // 빈 행 무시
+
+        if (!rowMap.has(rowStr)) {
+            rowMap.set(rowStr, [idx]);
+        } else {
+            rowMap.get(rowStr).push(idx);
+        }
+    });
+
+    // 중복 그룹 추출
+    rowMap.forEach((indices, rowStr) => {
+        if (indices.length > 1) {
+            groups.push({
+                indices: indices,
+                count: indices.length,
+                sample: data[indices[0]]
+            });
+            indices.forEach(idx => duplicates.push(idx));
+        }
+    });
+
+    return {
+        duplicates: duplicates.sort((a, b) => a - b),
+        groups: groups,
+        totalDuplicateRows: duplicates.length,
+        uniqueGroups: groups.length
+    };
+}
+
+// 키 열 기준 중복 탐지
+function findKeyDuplicates(fileName, sheetName, keyColumnIndices) {
+    if (!rawFiles[fileName] || !rawFiles[fileName].sheets[sheetName]) {
+        return { duplicates: [], groups: [] };
+    }
+
+    const sheetData = rawFiles[fileName].sheets[sheetName];
+    const data = sheetData.data || [];
+
+    const keyMap = new Map(); // keyString -> [rowIndices]
+    const duplicates = [];
+    const groups = [];
+
+    data.forEach((row, idx) => {
+        if (!row) return;
+
+        // 키 값만 추출
+        const keyValues = keyColumnIndices.map(colIdx => {
+            const cell = row[colIdx];
+            if (cell === null || cell === undefined) return '';
+            return String(cell).trim();
+        });
+
+        const keyStr = keyValues.join('|||');
+        if (!keyStr || keyStr === '|||'.repeat(keyColumnIndices.length - 1)) return; // 빈 키 무시
+
+        if (!keyMap.has(keyStr)) {
+            keyMap.set(keyStr, [idx]);
+        } else {
+            keyMap.get(keyStr).push(idx);
+        }
+    });
+
+    // 중복 그룹 추출
+    keyMap.forEach((indices, keyStr) => {
+        if (indices.length > 1) {
+            groups.push({
+                indices: indices,
+                count: indices.length,
+                keyValues: keyStr.split('|||'),
+                sample: data[indices[0]]
+            });
+            indices.forEach(idx => duplicates.push(idx));
+        }
+    });
+
+    return {
+        duplicates: duplicates.sort((a, b) => a - b),
+        groups: groups,
+        totalDuplicateRows: duplicates.length,
+        uniqueGroups: groups.length
+    };
+}
+
+// 중복 탐지 모달 표시
+function showDuplicateDetectionModal(fileName) {
+    if (!rawFiles[fileName]) {
+        showToast('파일을 찾을 수 없습니다.', 'error');
+        return;
+    }
+
+    const file = rawFiles[fileName];
+    const sheetNames = Object.keys(file.sheets);
+
+    if (sheetNames.length === 0) {
+        showToast('시트가 없습니다.', 'error');
+        return;
+    }
+
+    // 첫 번째 시트의 헤더 가져오기
+    const firstSheet = file.sheets[sheetNames[0]];
+    const headers = firstSheet.headers || [];
+
+    const modal = document.createElement('div');
+    modal.className = 'raw-file-history-modal';
+    modal.id = 'duplicateDetectionModal';
+    modal.innerHTML = `
+        <div class="history-modal-content" style="max-width: 550px;">
+            <div class="history-modal-header">
+                <h3>🔍 중복 행 탐지 - ${escHtml(file.displayName || fileName)}</h3>
+                <button class="history-modal-close" onclick="this.closest('.raw-file-history-modal').remove()">&times;</button>
+            </div>
+            <div class="history-modal-body" style="padding: 20px;">
+                <div class="duplicate-options">
+                    <div class="option-group">
+                        <label>시트 선택:</label>
+                        <select id="dupSheetSelect" onchange="updateDupHeaders('${escHtml(fileName)}')">
+                            ${sheetNames.map(sn => `<option value="${escHtml(sn)}">${escHtml(sn)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="option-group">
+                        <label>탐지 방식:</label>
+                        <div class="radio-group">
+                            <label><input type="radio" name="dupType" value="exact" checked onchange="toggleKeyColumns()"> 완전 중복 (모든 열 동일)</label>
+                            <label><input type="radio" name="dupType" value="key" onchange="toggleKeyColumns()"> 키 열 기준 중복</label>
+                        </div>
+                    </div>
+                    <div class="option-group" id="keyColumnsGroup" style="display: none;">
+                        <label>키 열 선택 (중복 판단 기준):</label>
+                        <div class="key-columns-list" id="keyColumnsList">
+                            ${headers.map((h, idx) => `
+                                <label class="key-col-item">
+                                    <input type="checkbox" value="${idx}">
+                                    ${escHtml(h || `열 ${idx + 1}`)}
+                                </label>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+                <div class="duplicate-actions">
+                    <button class="btn-copy-all" onclick="runDuplicateDetection('${escHtml(fileName)}')">
+                        🔍 중복 탐지 실행
+                    </button>
+                </div>
+                <div id="duplicateResultsArea" style="margin-top: 20px; display: none;">
+                    <!-- 결과가 여기에 표시됩니다 -->
+                </div>
+            </div>
+        </div>
+    `;
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
+
+    document.body.appendChild(modal);
+}
+
+// 키 열 선택 토글
+function toggleKeyColumns() {
+    const keyGroup = document.getElementById('keyColumnsGroup');
+    const isKeyMode = document.querySelector('input[name="dupType"]:checked')?.value === 'key';
+    if (keyGroup) {
+        keyGroup.style.display = isKeyMode ? 'block' : 'none';
+    }
+}
+
+// 시트 변경 시 헤더 업데이트
+function updateDupHeaders(fileName) {
+    const sheetSelect = document.getElementById('dupSheetSelect');
+    const sheetName = sheetSelect?.value;
+
+    if (!rawFiles[fileName] || !rawFiles[fileName].sheets[sheetName]) return;
+
+    const headers = rawFiles[fileName].sheets[sheetName].headers || [];
+    const keyColumnsList = document.getElementById('keyColumnsList');
+
+    if (keyColumnsList) {
+        keyColumnsList.innerHTML = headers.map((h, idx) => `
+            <label class="key-col-item">
+                <input type="checkbox" value="${idx}">
+                ${escHtml(h || `열 ${idx + 1}`)}
+            </label>
+        `).join('');
+    }
+}
+
+// 중복 탐지 실행
+function runDuplicateDetection(fileName) {
+    const sheetSelect = document.getElementById('dupSheetSelect');
+    const sheetName = sheetSelect?.value;
+    const dupType = document.querySelector('input[name="dupType"]:checked')?.value;
+
+    if (!sheetName) {
+        showToast('시트를 선택해주세요.', 'error');
+        return;
+    }
+
+    let result;
+    if (dupType === 'key') {
+        const checkedBoxes = document.querySelectorAll('#keyColumnsList input:checked');
+        const keyIndices = Array.from(checkedBoxes).map(cb => parseInt(cb.value));
+
+        if (keyIndices.length === 0) {
+            showToast('키 열을 1개 이상 선택해주세요.', 'error');
+            return;
+        }
+
+        result = findKeyDuplicates(fileName, sheetName, keyIndices);
+        result.type = 'key';
+        result.keyIndices = keyIndices;
+    } else {
+        result = findExactDuplicates(fileName, sheetName);
+        result.type = 'exact';
+    }
+
+    result.fileName = fileName;
+    result.sheetName = sheetName;
+    duplicateResults = result;
+
+    // 결과 표시
+    displayDuplicateResults(result);
+}
+
+// 중복 탐지 결과 표시
+function displayDuplicateResults(result) {
+    const resultsArea = document.getElementById('duplicateResultsArea');
+    if (!resultsArea) return;
+
+    const headers = rawFiles[result.fileName]?.sheets[result.sheetName]?.headers || [];
+
+    if (result.groups.length === 0) {
+        resultsArea.innerHTML = `
+            <div class="duplicate-no-result">
+                <div style="font-size: 32px; margin-bottom: 10px;">✅</div>
+                <div style="font-weight: 600; color: #4CAF50;">중복 없음!</div>
+                <div style="font-size: 12px; color: #666; margin-top: 5px;">모든 행이 고유합니다.</div>
+            </div>
+        `;
+        resultsArea.style.display = 'block';
+        return;
+    }
+
+    resultsArea.innerHTML = `
+        <div class="duplicate-summary">
+            <div class="dup-stat">
+                <span class="dup-stat-value">${result.uniqueGroups}</span>
+                <span class="dup-stat-label">중복 그룹</span>
+            </div>
+            <div class="dup-stat">
+                <span class="dup-stat-value">${result.totalDuplicateRows}</span>
+                <span class="dup-stat-label">중복 행</span>
+            </div>
+            <div class="dup-stat">
+                <span class="dup-stat-value">${result.totalDuplicateRows - result.uniqueGroups}</span>
+                <span class="dup-stat-label">제거 가능</span>
+            </div>
+        </div>
+        <div class="duplicate-groups-list">
+            ${result.groups.slice(0, 10).map((group, gIdx) => `
+                <div class="dup-group-item">
+                    <div class="dup-group-header">
+                        <span class="dup-group-badge">${group.count}개 중복</span>
+                        <span class="dup-group-rows">행 번호: ${group.indices.map(i => i + 1).join(', ')}</span>
+                    </div>
+                    <div class="dup-group-preview">
+                        ${group.sample ? group.sample.slice(0, 4).map((cell, cIdx) => `
+                            <span class="dup-cell" title="${escHtml(headers[cIdx] || `열${cIdx+1}`)}">${escHtml(String(cell || '').substring(0, 20))}</span>
+                        `).join('') : ''}
+                        ${group.sample && group.sample.length > 4 ? '<span class="dup-cell-more">...</span>' : ''}
+                    </div>
+                </div>
+            `).join('')}
+            ${result.groups.length > 10 ? `<div class="dup-more-groups">외 ${result.groups.length - 10}개 그룹 더...</div>` : ''}
+        </div>
+        <div class="duplicate-actions" style="margin-top: 15px;">
+            <button class="btn-remove-dup" onclick="removeDuplicates()">
+                🗑️ 중복 제거 (${result.totalDuplicateRows - result.uniqueGroups}행)
+            </button>
+        </div>
+    `;
+    resultsArea.style.display = 'block';
+}
+
+// 중복 제거
+function removeDuplicates() {
+    if (!duplicateResults || duplicateResults.groups.length === 0) {
+        showToast('제거할 중복이 없습니다.', 'error');
+        return;
+    }
+
+    const { fileName, sheetName, groups } = duplicateResults;
+
+    if (!rawFiles[fileName] || !rawFiles[fileName].sheets[sheetName]) {
+        showToast('파일 또는 시트를 찾을 수 없습니다.', 'error');
+        return;
+    }
+
+    // 각 그룹에서 첫 번째 행만 남기고 나머지 제거
+    const indicesToRemove = new Set();
+    groups.forEach(group => {
+        // 첫 번째(인덱스 0)를 제외한 나머지 모두 제거 대상
+        group.indices.slice(1).forEach(idx => indicesToRemove.add(idx));
+    });
+
+    const removeCount = indicesToRemove.size;
+
+    if (!confirm(`${removeCount}개의 중복 행을 제거하시겠습니까?\n(각 그룹에서 첫 번째 행만 유지됩니다)`)) {
+        return;
+    }
+
+    // 데이터에서 중복 행 제거
+    const originalData = rawFiles[fileName].sheets[sheetName].data;
+    const newData = originalData.filter((_, idx) => !indicesToRemove.has(idx));
+
+    rawFiles[fileName].sheets[sheetName].data = newData;
+
+    // 총 행 수 업데이트
+    let totalRows = 0;
+    Object.values(rawFiles[fileName].sheets).forEach(sheet => {
+        totalRows += (sheet.data?.length || 0);
+    });
+    rawFiles[fileName].totalRows = totalRows;
+
+    // 저장
+    saveRawFilesToLocalStorage();
+
+    // 모달 닫기 및 결과 초기화
+    document.getElementById('duplicateDetectionModal')?.remove();
+    duplicateResults = null;
+
+    showToast(`${removeCount}개 중복 행이 제거되었습니다.`, 'success');
+    renderRawFilesList();
 }
 
 // 선택된 파일들을 폴더로 이동하는 모달
