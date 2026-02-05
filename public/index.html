@@ -196,65 +196,36 @@
     
     <!-- 업로드 리뷰 모달 -->
     <div class="modal-overlay upload-review-modal" id="uploadReviewModal">
-        <div class="modal-content">
+        <div class="modal-content compact">
             <div class="modal-header">
-                <h3>업로드 검토</h3>
+                <h3>📋 업로드 검토</h3>
                 <button class="modal-close" onclick="closeUploadReview()">&times;</button>
             </div>
-            
-            <div class="upload-review-summary" id="reviewSummary">
-                <div class="summary-card sheets">
-                    <div class="count" id="summarySheets">0</div>
-                    <div class="label">새 시트</div>
-                </div>
-                <div class="summary-card additions">
-                    <div class="count" id="summaryAdditions">0</div>
-                    <div class="label">추가 건</div>
-                </div>
-                <div class="summary-card changes">
-                    <div class="count" id="summaryChanges">0</div>
-                    <div class="label">변경 건</div>
-                </div>
-                <div class="summary-card errors">
-                    <div class="count" id="summaryErrors">0</div>
-                    <div class="label">오류 건</div>
-                </div>
+
+            <!-- 간소화된 요약 (한 줄) -->
+            <div class="upload-review-summary compact" id="reviewSummary">
+                <span class="summary-item"><strong id="summarySheets">0</strong> 새시트</span>
+                <span class="summary-item"><strong id="summaryAdditions">0</strong> 추가</span>
+                <span class="summary-item"><strong id="summaryChanges">0</strong> 변경</span>
+                <span class="summary-item error"><strong id="summaryErrors">0</strong> 오류</span>
             </div>
-            
-            <div class="review-tabs">
-                <button class="review-tab active" data-tab="additions" onclick="switchReviewTab('additions')">
-                    추가 <span class="badge green" id="tabAdditions">0</span>
-                </button>
-                <button class="review-tab" data-tab="changes" onclick="switchReviewTab('changes')">
-                    변경 <span class="badge orange" id="tabChanges">0</span>
-                </button>
-                <button class="review-tab" data-tab="errors" onclick="switchReviewTab('errors')">
-                    오류 <span class="badge red" id="tabErrors">0</span>
-                </button>
-                <button class="review-tab" data-tab="sheets" onclick="switchReviewTab('sheets')">
-                    새 시트 <span class="badge blue" id="tabSheets">0</span>
-                </button>
+
+            <!-- 간소화된 탭 -->
+            <div class="review-tabs compact">
+                <button class="review-tab active" data-tab="additions" onclick="switchReviewTab('additions')">추가 <span class="badge green" id="tabAdditions">0</span></button>
+                <button class="review-tab" data-tab="changes" onclick="switchReviewTab('changes')">변경 <span class="badge orange" id="tabChanges">0</span></button>
+                <button class="review-tab" data-tab="errors" onclick="switchReviewTab('errors')">오류 <span class="badge red" id="tabErrors">0</span></button>
+                <button class="review-tab" data-tab="sheets" onclick="switchReviewTab('sheets')">새시트 <span class="badge blue" id="tabSheets">0</span></button>
             </div>
-            
-            <div class="select-all-row">
-                <input type="checkbox" id="selectAllReview" onchange="toggleSelectAllReview()">
-                <label for="selectAllReview">전체 선택</label>
-                <span style="margin-left:auto;font-size:11px;color:var(--retro-warm-gray);" id="selectedCount">0개 선택됨</span>
-            </div>
-            
+
             <div class="review-content" id="reviewContent">
                 <ul class="review-list" id="reviewList"></ul>
             </div>
-            
-            <div class="review-actions">
-                <div class="left-btns">
-                    <button class="modal-btn" onclick="closeUploadReview()">취소</button>
-                    <button class="modal-btn danger" onclick="discardAllReview()">전체 무시</button>
-                </div>
-                <div class="right-btns">
-                    <button class="modal-btn warning" onclick="applySelectedReview()">선택 적용</button>
-                    <button class="modal-btn success" onclick="applyAllReview()">전체 적용</button>
-                </div>
+
+            <!-- 간소화된 버튼 (2개로 축소) -->
+            <div class="review-actions compact">
+                <button class="modal-btn" onclick="closeUploadReview()">취소</button>
+                <button class="modal-btn success" onclick="applyAllReview()">✓ 전체 적용</button>
             </div>
         </div>
     </div>

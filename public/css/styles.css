@@ -928,6 +928,24 @@
             margin-bottom: 15px;
             flex-wrap: wrap;
         }
+        .upload-review-summary.compact {
+            gap: 20px;
+            padding: 10px 15px;
+            background: var(--retro-beige);
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+        .upload-review-summary.compact .summary-item {
+            font-size: 13px;
+            color: var(--retro-charcoal);
+        }
+        .upload-review-summary.compact .summary-item strong {
+            font-size: 16px;
+            margin-right: 3px;
+        }
+        .upload-review-summary.compact .summary-item.error strong {
+            color: var(--retro-coral);
+        }
         .summary-card {
             flex: 1;
             min-width: 120px;
@@ -945,11 +963,28 @@
         .summary-card.changes .count { color: #ef6c00; }
         .summary-card.errors .count { color: #c62828; }
         .summary-card.sheets .count { color: #1565c0; }
-        
+
         .review-tabs {
             display: flex;
             border-bottom: 2px solid #e0e0e0;
             margin-bottom: 10px;
+        }
+        .review-tabs.compact {
+            gap: 5px;
+        }
+        .review-tabs.compact .review-tab {
+            padding: 8px 12px;
+            font-size: 12px;
+        }
+        .review-actions.compact {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 15px;
+            border-top: 1px solid var(--retro-border);
+        }
+        .modal-content.compact {
+            max-width: 500px;
         }
         .review-tab {
             padding: 10px 20px;
