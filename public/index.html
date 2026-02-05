@@ -14170,56 +14170,45 @@ async function handleRawFileUpload(e) {
     }
 }
 
-// 데이터 누적 처리 - 헤더가 같으면 파일명 상관없이 병합
+// 데이터 누적 처리 - displayName 기반 스마트 병합
 function accumulateRawFileData(fileName, newSheets) {
     const now = new Date().toISOString();
-    let addedRows = 0;
-    let targetFileName = fileName;
 
-    // 새 시트들의 헤더로 기존 파일 중 헤더가 같은 파일 찾기
-    Object.keys(newSheets).forEach(sheetName => {
-        const newSheet = newSheets[sheetName];
-        const newHeadersStr = JSON.stringify(newSheet.headers);
+    // 1. 새 파일의 displayName 추출 (날짜/확장자 제거)
+    const newDisplayName = fileName
+        .replace(/\s*\d{4}\.\d{2}\.\d{2}/g, '')  // 날짜 제거
+        .replace(/\s*\(\d+\)/g, '')               // (1), (2) 등 제거
+        .replace(/\.xlsx?$/i, '')                 // 확장자 제거
+        .replace(/\.csv$/i, '')
+        .trim() || fileName;
 
-        // 기존 rawFiles에서 같은 헤더를 가진 파일 찾기
-        let matchedFile = null;
-        for (const existingFileName of Object.keys(rawFiles)) {
-            const existingFile = rawFiles[existingFileName];
-            // 같은 시트명이 있고 헤더가 같은지 확인
-            if (existingFile.sheets[sheetName]) {
-                const existingHeadersStr = JSON.stringify(existingFile.sheets[sheetName].headers);
-                if (existingHeadersStr === newHeadersStr) {
-                    matchedFile = existingFileName;
-                    break;
-                }
-            }
-            // 시트명이 달라도 첫 번째 시트끼리 헤더 비교
-            const existingSheetNames = Object.keys(existingFile.sheets);
-            if (existingSheetNames.length > 0) {
-                const firstExistingSheet = existingFile.sheets[existingSheetNames[0]];
-                if (JSON.stringify(firstExistingSheet.headers) === newHeadersStr) {
-                    matchedFile = existingFileName;
-                    break;
-                }
-            }
+    // 2. displayName이 같은 기존 파일 찾기 (핵심!)
+    let targetFileName = null;
+    for (const existingFileName of Object.keys(rawFiles)) {
+        if (rawFiles[existingFileName].displayName === newDisplayName) {
+            targetFileName = existingFileName;
+            break;
         }
+    }
 
-        if (matchedFile) {
-            targetFileName = matchedFile;
-        }
-    });
+    // 3. 병합 결과 수집용
+    const mergeResult = {
+        isNewFile: !targetFileName,
+        displayName: newDisplayName,
+        targetFileName: targetFileName || fileName,
+        sheetResults: []
+    };
 
-    // 대상 파일이 없으면 새로 생성
-    if (!rawFiles[targetFileName]) {
-        // displayName: 날짜와 확장자 제거한 파일명 (예: "환불장 2026.01.15.xlsx" → "환불장")
-        const displayName = targetFileName.replace(/\s*\d{4}\.\d{2}\.\d{2}/g, '').replace(/\.xlsx?$/i, '').trim() || targetFileName;
+    // 4. 대상 파일이 없으면 새로 생성
+    if (!targetFileName) {
+        targetFileName = fileName;
         rawFiles[targetFileName] = {
             name: targetFileName,
-            displayName: displayName,
+            displayName: newDisplayName,
             sheets: {},
             lastUpdated: now,
             totalRows: 0,
-            sourceFiles: [fileName] // 원본 파일명들 기록
+            sourceFiles: [fileName]
         };
     } else {
         // 원본 파일명 기록
@@ -14231,11 +14220,20 @@ function accumulateRawFileData(fileName, newSheets) {
         }
     }
 
+    // 5. 시트별 병합 (시트명 정확 매칭)
     Object.keys(newSheets).forEach(sheetName => {
         const newSheet = newSheets[sheetName];
+        const sheetResult = {
+            sheetName: sheetName,
+            isNewSheet: false,
+            totalNewRows: (newSheet.data || []).length,
+            addedRows: 0,
+            duplicateRows: 0,
+            headerMapped: false
+        };
 
         if (!rawFiles[targetFileName].sheets[sheetName]) {
-            // 새 시트 (스타일 정보 포함)
+            // 새 시트 생성
             rawFiles[targetFileName].sheets[sheetName] = {
                 headers: newSheet.headers,
                 data: newSheet.data || [],
@@ -14251,61 +14249,135 @@ function accumulateRawFileData(fileName, newSheets) {
                     sourceFile: fileName
                 }]
             };
-            addedRows += (newSheet.data || []).length;
+            sheetResult.isNewSheet = true;
+            sheetResult.addedRows = (newSheet.data || []).length;
         } else {
-            // 기존 시트에 데이터 누적
+            // 기존 시트에 병합
             const existingSheet = rawFiles[targetFileName].sheets[sheetName];
             const headersMatch = JSON.stringify(existingSheet.headers) === JSON.stringify(newSheet.headers);
 
-            if (headersMatch) {
-                // 헤더가 같으면 데이터만 누적 (중복 제거)
-                const newRows = newSheet.data || [];
-                const existingDataSet = new Set(existingSheet.data.map(row => JSON.stringify(row)));
-                const uniqueNewRows = newRows.filter(row => !existingDataSet.has(JSON.stringify(row)));
+            let rowsToMerge = newSheet.data || [];
 
-                if (uniqueNewRows.length > 0) {
-                    existingSheet.data = [...existingSheet.data, ...uniqueNewRows];
-                    existingSheet.uploadHistory.push({
-                        date: now,
-                        rowCount: uniqueNewRows.length,
-                        sourceFile: fileName
-                    });
-                    addedRows += uniqueNewRows.length;
-                } else {
-                    console.log(`중복 데이터: ${fileName} - ${sheetName} (새 행 없음)`);
-                }
-            } else {
-                // 헤더가 다르면 열 매핑 시도 (중복 제거)
-                const mappedData = mapColumnsToExistingHeaders(existingSheet.headers, newSheet.headers, newSheet.data);
-                const existingDataSet = new Set(existingSheet.data.map(row => JSON.stringify(row)));
-                const uniqueMappedRows = mappedData.filter(row => !existingDataSet.has(JSON.stringify(row)));
+            // 헤더가 다르면 열 매핑
+            if (!headersMatch) {
+                rowsToMerge = mapColumnsToExistingHeaders(existingSheet.headers, newSheet.headers, newSheet.data);
+                sheetResult.headerMapped = true;
+            }
 
-                if (uniqueMappedRows.length > 0) {
-                    existingSheet.data = [...existingSheet.data, ...uniqueMappedRows];
-                    existingSheet.uploadHistory.push({
-                        date: now,
-                        rowCount: uniqueMappedRows.length,
-                        sourceFile: fileName,
-                        note: '열 매핑됨'
-                    });
-                    addedRows += uniqueMappedRows.length;
-                }
+            // 중복 제거 (JSON.stringify 비교)
+            const existingDataSet = new Set(existingSheet.data.map(row => JSON.stringify(row)));
+            const uniqueNewRows = rowsToMerge.filter(row => !existingDataSet.has(JSON.stringify(row)));
+
+            sheetResult.duplicateRows = rowsToMerge.length - uniqueNewRows.length;
+            sheetResult.addedRows = uniqueNewRows.length;
+
+            if (uniqueNewRows.length > 0) {
+                existingSheet.data = [...existingSheet.data, ...uniqueNewRows];
+                existingSheet.uploadHistory = existingSheet.uploadHistory || [];
+                existingSheet.uploadHistory.push({
+                    date: now,
+                    rowCount: uniqueNewRows.length,
+                    sourceFile: fileName,
+                    note: headersMatch ? '' : '열 매핑됨'
+                });
             }
         }
+
+        mergeResult.sheetResults.push(sheetResult);
     });
 
-    // 총 행 수 업데이트
+    // 6. 총 행 수 업데이트
     rawFiles[targetFileName].totalRows = Object.values(rawFiles[targetFileName].sheets)
         .reduce((sum, sheet) => sum + (sheet.data ? sheet.data.length : 0), 0);
-
     rawFiles[targetFileName].lastUpdated = now;
 
-    if (targetFileName !== fileName) {
-        console.log(`원본 파일 병합: ${fileName} → ${targetFileName}, 추가된 행: ${addedRows}, 총 행: ${rawFiles[targetFileName].totalRows}`);
-        toast(`헤더 일치! '${targetFileName}'에 병합됨 (+${addedRows}행)`);
-    } else {
-        console.log(`원본 파일 누적: ${fileName}, 추가된 행: ${addedRows}, 총 행: ${rawFiles[targetFileName].totalRows}`);
+    // 7. 병합 결과 표시
+    mergeResult.targetFileName = targetFileName;
+    showSmartMergeResult(mergeResult, fileName);
+}
+
+// 스마트 병합 결과 표시
+function showSmartMergeResult(mergeResult, sourceFileName) {
+    const { isNewFile, displayName, sheetResults, targetFileName } = mergeResult;
+
+    // 전체 통계
+    const totalAdded = sheetResults.reduce((sum, r) => sum + r.addedRows, 0);
+    const totalDuplicates = sheetResults.reduce((sum, r) => sum + r.duplicateRows, 0);
+    const newSheetCount = sheetResults.filter(r => r.isNewSheet).length;
+    const mergedSheetCount = sheetResults.filter(r => !r.isNewSheet && r.addedRows > 0).length;
+
+    // 새 파일이거나 시트가 1개뿐이면 간단한 toast
+    if (isNewFile) {
+        showToast(`새 파일 등록: ${displayName} (${totalAdded}행)`, 'success');
+        return;
     }
+
+    if (sheetResults.length === 1) {
+        const r = sheetResults[0];
+        if (r.addedRows === 0) {
+            showToast(`'${displayName}' 중복 데이터 (새 행 없음)`, 'info');
+        } else {
+            showToast(`'${displayName} - ${r.sheetName}' +${r.addedRows}행 (중복 ${r.duplicateRows}건 제외)`, 'success');
+        }
+        return;
+    }
+
+    // 여러 시트면 상세 모달 표시
+    const modal = document.createElement('div');
+    modal.className = 'raw-file-history-modal';
+    modal.id = 'smartMergeResultModal';
+    modal.innerHTML = `
+        <div class="history-modal-content" style="max-width: 500px;">
+            <div class="history-modal-header">
+                <h3>📊 스마트 병합 완료</h3>
+                <button class="history-modal-close" onclick="this.closest('.raw-file-history-modal').remove()">&times;</button>
+            </div>
+            <div class="history-modal-body" style="padding: 20px;">
+                <div class="merge-file-info">
+                    <strong>${escHtml(displayName)}</strong>
+                    <span style="color: #666; font-size: 12px;">← ${escHtml(sourceFileName)}</span>
+                </div>
+                <div class="merge-result-summary">
+                    <div class="merge-stat">
+                        <span class="merge-stat-value">+${totalAdded}</span>
+                        <span class="merge-stat-label">추가된 행</span>
+                    </div>
+                    <div class="merge-stat">
+                        <span class="merge-stat-value">${totalDuplicates}</span>
+                        <span class="merge-stat-label">중복 제외</span>
+                    </div>
+                    <div class="merge-stat">
+                        <span class="merge-stat-value">${newSheetCount}</span>
+                        <span class="merge-stat-label">새 시트</span>
+                    </div>
+                </div>
+                <div class="merge-sheet-results">
+                    <h4>시트별 결과</h4>
+                    <table class="merge-result-table">
+                        <thead>
+                            <tr><th>시트명</th><th>상태</th><th>추가</th><th>중복</th></tr>
+                        </thead>
+                        <tbody>
+                            ${sheetResults.map(r => `
+                                <tr class="${r.addedRows > 0 ? 'has-new' : 'no-change'}">
+                                    <td title="${escHtml(r.sheetName)}">${escHtml(r.sheetName.length > 20 ? r.sheetName.substring(0, 20) + '...' : r.sheetName)}</td>
+                                    <td>${r.isNewSheet ? '🆕 새 시트' : r.addedRows > 0 ? '✅ 병합됨' : '⚪ 변경없음'}</td>
+                                    <td class="num">${r.addedRows > 0 ? '+' + r.addedRows : '-'}</td>
+                                    <td class="num">${r.duplicateRows > 0 ? r.duplicateRows : '-'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
+
+    document.body.appendChild(modal);
 }
 
 // 열 매핑 함수 (헤더가 다를 때)

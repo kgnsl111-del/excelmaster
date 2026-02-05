@@ -6303,3 +6303,85 @@
             border-radius: 4px;
             font-size: 12px;
         }
+
+        /* ===== 스마트 병합 결과 모달 ===== */
+        .merge-result-summary {
+            display: flex;
+            justify-content: space-around;
+            padding: 20px;
+            background: linear-gradient(135deg, var(--retro-mint) 0%, var(--retro-cream) 100%);
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 2px solid var(--retro-border);
+        }
+        .merge-stat {
+            text-align: center;
+            padding: 10px 20px;
+        }
+        .merge-stat-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--retro-teal);
+        }
+        .merge-stat-value.added {
+            color: var(--retro-green);
+        }
+        .merge-stat-value.duplicate {
+            color: var(--retro-warm-gray);
+        }
+        .merge-stat-value.new-sheet {
+            color: var(--retro-blue);
+        }
+        .merge-stat-label {
+            font-size: 12px;
+            color: var(--retro-warm-gray);
+            margin-top: 4px;
+        }
+        .merge-result-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .merge-result-table th {
+            background: var(--retro-teal);
+            color: white;
+            padding: 10px 12px;
+            text-align: left;
+            font-weight: 500;
+        }
+        .merge-result-table th:first-child {
+            border-radius: 6px 0 0 0;
+        }
+        .merge-result-table th:last-child {
+            border-radius: 0 6px 0 0;
+        }
+        .merge-result-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--retro-border);
+        }
+        .merge-result-table tr:hover {
+            background: var(--retro-mint);
+        }
+        .merge-result-table .sheet-name {
+            font-weight: 500;
+        }
+        .merge-result-table .added-cell {
+            color: var(--retro-green);
+            font-weight: 600;
+        }
+        .merge-result-table .duplicate-cell {
+            color: var(--retro-warm-gray);
+        }
+        .merge-result-table .new-badge {
+            display: inline-block;
+            background: var(--retro-blue);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            margin-left: 8px;
+        }
+        .merge-result-table .no-change {
+            color: var(--retro-warm-gray);
+            font-style: italic;
+        }
