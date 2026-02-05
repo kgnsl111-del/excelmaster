@@ -499,6 +499,7 @@
                     </div>
                     <button class="raw-file-select-btn" id="rawFileSelectModeBtn" onclick="toggleRawFileSelectMode()">선택</button>
                     <button class="raw-folder-create-btn" onclick="createRawFileFolder()" title="새 폴더 만들기">📁+</button>
+                    <button class="raw-analytics-btn" onclick="showAnalyticsDashboard()" title="분석 대시보드">📈</button>
                     <span class="raw-file-count">0개 파일</span>
                 </div>
                 <!-- 선택 모드 액션 바 -->
@@ -12045,6 +12046,7 @@ function renderRawFilesList() {
                     ${!rawFileSelectMode ? `<div class="raw-file-card-actions">
                         <button onclick="event.stopPropagation(); showStatisticsModal('${safeFileName}')" title="통계">📊</button>
                         <button onclick="event.stopPropagation(); showDuplicateDetectionModal('${safeFileName}')" title="중복 탐지">🔍</button>
+                        <button onclick="event.stopPropagation(); showDataCleaningModal('${safeFileName}')" title="데이터 정제">🧹</button>
                         <button class="copy-to-sheet" onclick="event.stopPropagation(); copyRawFileToSheets('${safeFileName}')" title="시트로 복사">📑</button>
                         <button onclick="event.stopPropagation(); downloadRawFile('${safeFileName}')">다운로드</button>
                         <button class="danger" onclick="event.stopPropagation(); deleteRawFile('${safeFileName}')">삭제</button>
@@ -12076,6 +12078,7 @@ function renderRawFilesList() {
                     ${!rawFileSelectMode ? `<div class="raw-file-actions">
                         <button class="raw-file-btn" onclick="event.stopPropagation(); showStatisticsModal('${safeFileName}')" title="통계">📊</button>
                         <button class="raw-file-btn" onclick="event.stopPropagation(); showDuplicateDetectionModal('${safeFileName}')" title="중복 탐지">🔍</button>
+                        <button class="raw-file-btn" onclick="event.stopPropagation(); showDataCleaningModal('${safeFileName}')" title="데이터 정제">🧹</button>
                         <button class="raw-file-btn copy-to-sheet" onclick="event.stopPropagation(); copyRawFileToSheets('${safeFileName}')" title="시트로 복사">📑</button>
                         <button class="raw-file-btn" onclick="event.stopPropagation(); showRawFileHistory('${safeFileName}')" title="업로드 이력">📋</button>
                         <button class="raw-file-btn" onclick="event.stopPropagation(); downloadRawFile('${safeFileName}')">다운로드</button>
@@ -13480,6 +13483,433 @@ function getFillRateColor(rate) {
     if (rate >= 50) return '#FFC107';
     if (rate >= 30) return '#FF9800';
     return '#F44336';
+}
+
+// ========== 데이터 정제 도구 (Phase 3) ==========
+
+// 데이터 정제 모달 표시
+function showDataCleaningModal(fileName) {
+    if (!rawFiles[fileName]) {
+        showToast('파일을 찾을 수 없습니다.', 'error');
+        return;
+    }
+
+    const file = rawFiles[fileName];
+    const sheetNames = Object.keys(file.sheets);
+
+    const modal = document.createElement('div');
+    modal.className = 'raw-file-history-modal';
+    modal.id = 'dataCleaningModal';
+    modal.innerHTML = `
+        <div class="history-modal-content" style="max-width: 500px;">
+            <div class="history-modal-header">
+                <h3>🧹 데이터 정제 - ${escHtml(file.displayName || fileName)}</h3>
+                <button class="history-modal-close" onclick="this.closest('.raw-file-history-modal').remove()">&times;</button>
+            </div>
+            <div class="history-modal-body" style="padding: 20px;">
+                <div class="cleaning-options">
+                    <div class="option-group">
+                        <label>시트 선택:</label>
+                        <select id="cleanSheetSelect">
+                            <option value="__all__">모든 시트</option>
+                            ${sheetNames.map(sn => `<option value="${escHtml(sn)}">${escHtml(sn)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="cleaning-tools">
+                        <div class="cleaning-tool" onclick="runCleaningTool('${escHtml(fileName)}', 'trim')">
+                            <div class="tool-icon">✂️</div>
+                            <div class="tool-info">
+                                <div class="tool-name">공백 제거 (Trim)</div>
+                                <div class="tool-desc">앞뒤 공백 제거</div>
+                            </div>
+                        </div>
+                        <div class="cleaning-tool" onclick="runCleaningTool('${escHtml(fileName)}', 'emptyRows')">
+                            <div class="tool-icon">🗑️</div>
+                            <div class="tool-info">
+                                <div class="tool-name">빈 행 제거</div>
+                                <div class="tool-desc">모든 셀이 비어있는 행 삭제</div>
+                            </div>
+                        </div>
+                        <div class="cleaning-tool" onclick="runCleaningTool('${escHtml(fileName)}', 'normalizeDate')">
+                            <div class="tool-icon">📅</div>
+                            <div class="tool-info">
+                                <div class="tool-name">날짜 형식 통일</div>
+                                <div class="tool-desc">YYYY-MM-DD 형식으로 변환</div>
+                            </div>
+                        </div>
+                        <div class="cleaning-tool" onclick="runCleaningTool('${escHtml(fileName)}', 'normalizeNumber')">
+                            <div class="tool-icon">🔢</div>
+                            <div class="tool-info">
+                                <div class="tool-name">숫자 형식 정리</div>
+                                <div class="tool-desc">쉼표/공백 제거, 숫자로 변환</div>
+                            </div>
+                        </div>
+                        <div class="cleaning-tool" onclick="runCleaningTool('${escHtml(fileName)}', 'lowercase')">
+                            <div class="tool-icon">🔡</div>
+                            <div class="tool-info">
+                                <div class="tool-name">소문자 변환</div>
+                                <div class="tool-desc">영문 텍스트를 소문자로</div>
+                            </div>
+                        </div>
+                        <div class="cleaning-tool" onclick="runCleaningTool('${escHtml(fileName)}', 'uppercase')">
+                            <div class="tool-icon">🔠</div>
+                            <div class="tool-info">
+                                <div class="tool-name">대문자 변환</div>
+                                <div class="tool-desc">영문 텍스트를 대문자로</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="cleaningResultArea" style="margin-top: 15px; display: none;">
+                    <!-- 결과가 여기 표시 -->
+                </div>
+            </div>
+        </div>
+    `;
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
+
+    document.body.appendChild(modal);
+}
+
+// 정제 도구 실행
+function runCleaningTool(fileName, toolType) {
+    const sheetSelect = document.getElementById('cleanSheetSelect');
+    const selectedSheet = sheetSelect?.value;
+
+    if (!rawFiles[fileName]) {
+        showToast('파일을 찾을 수 없습니다.', 'error');
+        return;
+    }
+
+    const sheetsToClean = selectedSheet === '__all__'
+        ? Object.keys(rawFiles[fileName].sheets)
+        : [selectedSheet];
+
+    let totalChanges = 0;
+
+    sheetsToClean.forEach(sheetName => {
+        const sheet = rawFiles[fileName].sheets[sheetName];
+        if (!sheet || !sheet.data) return;
+
+        const result = applyCleaningTool(sheet.data, toolType);
+        sheet.data = result.data;
+        totalChanges += result.changes;
+    });
+
+    // 저장
+    saveRawFilesToLocalStorage();
+
+    // 결과 표시
+    const resultArea = document.getElementById('cleaningResultArea');
+    if (resultArea) {
+        resultArea.innerHTML = `
+            <div class="cleaning-result ${totalChanges > 0 ? 'success' : 'no-change'}">
+                ${totalChanges > 0
+                    ? `✅ ${totalChanges}개 셀이 정제되었습니다.`
+                    : `ℹ️ 변경할 내용이 없습니다.`
+                }
+            </div>
+        `;
+        resultArea.style.display = 'block';
+    }
+
+    if (totalChanges > 0) {
+        showToast(`${totalChanges}개 셀 정제 완료`, 'success');
+        renderRawFilesList();
+    }
+}
+
+// 정제 도구 적용
+function applyCleaningTool(data, toolType) {
+    let changes = 0;
+
+    const newData = data.map((row, rowIdx) => {
+        if (!row) return row;
+
+        // 빈 행 제거
+        if (toolType === 'emptyRows') {
+            const isEmpty = row.every(cell => cell === null || cell === undefined || cell === '');
+            if (isEmpty) {
+                changes++;
+                return null; // 나중에 필터링
+            }
+            return row;
+        }
+
+        return row.map((cell, colIdx) => {
+            if (cell === null || cell === undefined) return cell;
+
+            const original = cell;
+            let processed = cell;
+
+            switch (toolType) {
+                case 'trim':
+                    if (typeof processed === 'string') {
+                        processed = processed.trim();
+                    }
+                    break;
+
+                case 'normalizeDate':
+                    processed = normalizeDate(processed);
+                    break;
+
+                case 'normalizeNumber':
+                    processed = normalizeNumber(processed);
+                    break;
+
+                case 'lowercase':
+                    if (typeof processed === 'string') {
+                        processed = processed.toLowerCase();
+                    }
+                    break;
+
+                case 'uppercase':
+                    if (typeof processed === 'string') {
+                        processed = processed.toUpperCase();
+                    }
+                    break;
+            }
+
+            if (processed !== original) {
+                changes++;
+            }
+
+            return processed;
+        });
+    });
+
+    // 빈 행 필터링 (emptyRows 도구)
+    const filteredData = toolType === 'emptyRows'
+        ? newData.filter(row => row !== null)
+        : newData;
+
+    return { data: filteredData, changes };
+}
+
+// 날짜 정규화
+function normalizeDate(value) {
+    if (!value) return value;
+    const str = String(value);
+
+    // 이미 YYYY-MM-DD 형식이면 그대로
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+
+    // 다양한 날짜 형식 파싱 시도
+    const patterns = [
+        /(\d{4})[./-](\d{1,2})[./-](\d{1,2})/,  // YYYY.MM.DD, YYYY/MM/DD
+        /(\d{1,2})[./-](\d{1,2})[./-](\d{4})/,  // MM/DD/YYYY, DD.MM.YYYY
+        /(\d{4})(\d{2})(\d{2})/,                 // YYYYMMDD
+    ];
+
+    for (const pattern of patterns) {
+        const match = str.match(pattern);
+        if (match) {
+            let year, month, day;
+            if (pattern === patterns[0] || pattern === patterns[2]) {
+                [, year, month, day] = match;
+            } else {
+                // MM/DD/YYYY 가정
+                [, month, day, year] = match;
+            }
+            year = String(year).padStart(4, '20');
+            month = String(month).padStart(2, '0');
+            day = String(day).padStart(2, '0');
+
+            if (parseInt(month) <= 12 && parseInt(day) <= 31) {
+                return `${year}-${month}-${day}`;
+            }
+        }
+    }
+
+    return value;
+}
+
+// 숫자 정규화
+function normalizeNumber(value) {
+    if (!value) return value;
+    const str = String(value).trim();
+
+    // 숫자가 아닌 것 같으면 그대로
+    if (!/[\d.,]+/.test(str)) return value;
+
+    // 쉼표, 공백 제거
+    const cleaned = str.replace(/[,\s]/g, '');
+
+    // 숫자로 변환 가능하면 변환
+    const num = parseFloat(cleaned);
+    if (!isNaN(num)) {
+        return num;
+    }
+
+    return value;
+}
+
+// ========== 업로드 추세 분석 (Phase 3) ==========
+
+// 전체 원본 파일 분석 대시보드
+function showAnalyticsDashboard() {
+    const fileNames = Object.keys(rawFiles);
+
+    if (fileNames.length === 0) {
+        showToast('분석할 파일이 없습니다.', 'error');
+        return;
+    }
+
+    // 전체 통계 계산
+    let totalFiles = fileNames.length;
+    let totalSheets = 0;
+    let totalRows = 0;
+    let uploadHistory = [];
+
+    fileNames.forEach(fileName => {
+        const file = rawFiles[fileName];
+        const sheets = file.sheets || {};
+        totalSheets += Object.keys(sheets).length;
+        totalRows += file.totalRows || 0;
+
+        // 업로드 이력 수집
+        Object.keys(sheets).forEach(sheetName => {
+            const sheet = sheets[sheetName];
+            if (sheet.uploadHistory) {
+                sheet.uploadHistory.forEach(h => {
+                    uploadHistory.push({
+                        ...h,
+                        fileName,
+                        sheetName
+                    });
+                });
+            }
+        });
+
+        // 기본 이력 추가 (uploadHistory가 없는 경우)
+        if (file.lastUpdated && uploadHistory.filter(h => h.fileName === fileName).length === 0) {
+            uploadHistory.push({
+                date: file.lastUpdated,
+                fileName,
+                rowCount: file.totalRows || 0
+            });
+        }
+    });
+
+    // 날짜순 정렬
+    uploadHistory.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    // 월별 업로드 통계
+    const monthlyStats = {};
+    uploadHistory.forEach(h => {
+        const date = new Date(h.date);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        if (!monthlyStats[monthKey]) {
+            monthlyStats[monthKey] = { uploads: 0, rows: 0 };
+        }
+        monthlyStats[monthKey].uploads++;
+        monthlyStats[monthKey].rows += h.rowCount || 0;
+    });
+
+    // 최근 6개월 데이터
+    const monthKeys = Object.keys(monthlyStats).sort().slice(-6);
+
+    // 가장 많이 업로드된 파일
+    const fileUploadCounts = {};
+    uploadHistory.forEach(h => {
+        fileUploadCounts[h.fileName] = (fileUploadCounts[h.fileName] || 0) + 1;
+    });
+    const topFiles = Object.entries(fileUploadCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
+
+    const modal = document.createElement('div');
+    modal.className = 'raw-file-history-modal';
+    modal.innerHTML = `
+        <div class="history-modal-content" style="max-width: 650px;">
+            <div class="history-modal-header">
+                <h3>📈 원본 파일 분석 대시보드</h3>
+                <button class="history-modal-close" onclick="this.closest('.raw-file-history-modal').remove()">&times;</button>
+            </div>
+            <div class="history-modal-body" style="padding: 20px;">
+                <!-- 전체 통계 -->
+                <div class="stats-grid" style="margin-bottom: 20px;">
+                    <div class="stat-card">
+                        <div class="stat-icon">📁</div>
+                        <div class="stat-value">${totalFiles}</div>
+                        <div class="stat-label">총 파일</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📑</div>
+                        <div class="stat-value">${totalSheets}</div>
+                        <div class="stat-label">총 시트</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📝</div>
+                        <div class="stat-value">${totalRows.toLocaleString()}</div>
+                        <div class="stat-label">총 행</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📤</div>
+                        <div class="stat-value">${uploadHistory.length}</div>
+                        <div class="stat-label">총 업로드</div>
+                    </div>
+                </div>
+
+                <!-- 월별 추세 -->
+                <div class="analytics-section">
+                    <h4>📅 월별 업로드 추세</h4>
+                    <div class="monthly-chart">
+                        ${monthKeys.length > 0 ? monthKeys.map(month => {
+                            const data = monthlyStats[month];
+                            const maxUploads = Math.max(...monthKeys.map(k => monthlyStats[k].uploads));
+                            const heightPercent = maxUploads > 0 ? (data.uploads / maxUploads * 100) : 0;
+                            return `
+                                <div class="chart-bar-container">
+                                    <div class="chart-bar" style="height: ${heightPercent}%" title="${data.uploads}건, ${data.rows.toLocaleString()}행">
+                                        <span class="chart-value">${data.uploads}</span>
+                                    </div>
+                                    <div class="chart-label">${month.substring(5)}월</div>
+                                </div>
+                            `;
+                        }).join('') : '<div class="no-data">데이터 없음</div>'}
+                    </div>
+                </div>
+
+                <!-- 자주 업로드된 파일 -->
+                <div class="analytics-section">
+                    <h4>🔥 자주 업로드된 파일 TOP 5</h4>
+                    <div class="top-files-list">
+                        ${topFiles.length > 0 ? topFiles.map(([name, count], idx) => `
+                            <div class="top-file-item">
+                                <span class="top-file-rank">#${idx + 1}</span>
+                                <span class="top-file-name">${escHtml(rawFiles[name]?.displayName || name)}</span>
+                                <span class="top-file-count">${count}회</span>
+                            </div>
+                        `).join('') : '<div class="no-data">데이터 없음</div>'}
+                    </div>
+                </div>
+
+                <!-- 최근 활동 -->
+                <div class="analytics-section">
+                    <h4>🕐 최근 업로드</h4>
+                    <div class="recent-uploads-list">
+                        ${uploadHistory.slice(-5).reverse().map(h => `
+                            <div class="recent-upload-item">
+                                <span class="upload-date">${new Date(h.date).toLocaleDateString('ko-KR')}</span>
+                                <span class="upload-file">${escHtml(h.fileName?.substring(0, 20) || '-')}</span>
+                                <span class="upload-rows">+${(h.rowCount || 0).toLocaleString()}행</span>
+                            </div>
+                        `).join('') || '<div class="no-data">데이터 없음</div>'}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
+
+    document.body.appendChild(modal);
 }
 
 // 선택된 파일들을 폴더로 이동하는 모달

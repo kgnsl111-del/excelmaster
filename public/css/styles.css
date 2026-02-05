@@ -5312,6 +5312,181 @@
             color: var(--retro-teal-dark);
         }
 
+        /* ===== 데이터 정제 도구 스타일 ===== */
+        .cleaning-options {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .cleaning-options select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--retro-border);
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        .cleaning-tools {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .cleaning-tool {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 15px;
+            background: white;
+            border: 2px solid var(--retro-border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .cleaning-tool:hover {
+            border-color: var(--retro-teal);
+            background: var(--retro-mint);
+            transform: translateX(5px);
+        }
+        .tool-icon {
+            font-size: 24px;
+        }
+        .tool-info {
+            flex: 1;
+        }
+        .tool-name {
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--retro-charcoal);
+        }
+        .tool-desc {
+            font-size: 11px;
+            color: var(--retro-warm-gray);
+            margin-top: 2px;
+        }
+        .cleaning-result {
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 500;
+        }
+        .cleaning-result.success {
+            background: #E8F5E9;
+            color: #2E7D32;
+        }
+        .cleaning-result.no-change {
+            background: var(--retro-cream);
+            color: var(--retro-warm-gray);
+        }
+
+        /* ===== 분석 대시보드 스타일 ===== */
+        .raw-analytics-btn {
+            padding: 6px 10px;
+            background: linear-gradient(135deg, var(--retro-teal) 0%, var(--retro-teal-dark) 100%);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        .raw-analytics-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 2px 8px rgba(45, 140, 158, 0.4);
+        }
+        .analytics-section {
+            margin-bottom: 20px;
+        }
+        .analytics-section h4 {
+            font-size: 14px;
+            margin-bottom: 12px;
+            color: var(--retro-charcoal);
+        }
+        .monthly-chart {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-around;
+            height: 120px;
+            padding: 10px;
+            background: var(--retro-cream);
+            border-radius: 8px;
+        }
+        .chart-bar-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 40px;
+        }
+        .chart-bar {
+            width: 30px;
+            background: linear-gradient(180deg, var(--retro-teal) 0%, var(--retro-teal-dark) 100%);
+            border-radius: 4px 4px 0 0;
+            min-height: 5px;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            transition: height 0.3s;
+        }
+        .chart-value {
+            font-size: 10px;
+            color: white;
+            font-weight: bold;
+            margin-top: 3px;
+        }
+        .chart-label {
+            font-size: 11px;
+            color: var(--retro-warm-gray);
+            margin-top: 5px;
+        }
+        .top-files-list, .recent-uploads-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .top-file-item, .recent-upload-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            background: var(--retro-cream);
+            border-radius: 6px;
+            font-size: 12px;
+        }
+        .top-file-rank {
+            font-weight: bold;
+            color: var(--retro-teal);
+            margin-right: 10px;
+            min-width: 25px;
+        }
+        .top-file-name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .top-file-count {
+            font-weight: 600;
+            color: var(--retro-coral);
+        }
+        .upload-date {
+            color: var(--retro-warm-gray);
+            min-width: 80px;
+        }
+        .upload-file {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin: 0 10px;
+        }
+        .upload-rows {
+            color: var(--retro-teal-dark);
+            font-weight: 500;
+        }
+        .no-data {
+            text-align: center;
+            padding: 20px;
+            color: var(--retro-warm-gray);
+            font-size: 12px;
+        }
+
         /* 업로드 이력 모달 */
         .raw-file-history-modal {
             position: fixed;
