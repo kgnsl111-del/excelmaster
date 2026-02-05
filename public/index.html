@@ -1865,6 +1865,7 @@ let downloadOutputType = 'merge'; // 'merge', 'individual', 'structure'
 // 다운로드 드롭다운 토글
 function toggleDownloadDropdown() {
     const menu = document.getElementById('downloadDropdownMenu');
+    if (!menu) return;
     if (menu.classList.contains('show')) {
         menu.classList.remove('show');
     } else {
@@ -2234,7 +2235,8 @@ function selectDownloadOption(el, type) {
     downloadOutputType = type;
     
     // 병합 형식 섹션 표시/숨김
-    document.getElementById('mergeFormatSection').style.display = type === 'merge' ? 'flex' : 'none';
+    const mergeSection = document.getElementById('mergeFormatSection');
+    if (mergeSection) mergeSection.style.display = type === 'merge' ? 'flex' : 'none';
 }
 
 // 선택 요약 업데이트
@@ -4042,10 +4044,10 @@ function selectSearchSheet(name) {
 
 function setSearchView(mode) {
     searchViewMode = mode;
-    document.getElementById('listViewBtn').classList.toggle('active', mode === 'list');
-    document.getElementById('tableViewBtn').classList.toggle('active', mode === 'table');
-    
-    const keyword = document.getElementById('mainSearchInput').value.trim();
+    document.getElementById('listViewBtn')?.classList.toggle('active', mode === 'list');
+    document.getElementById('tableViewBtn')?.classList.toggle('active', mode === 'table');
+
+    const keyword = document.getElementById('mainSearchInput')?.value?.trim() || '';
     renderSearchResults(keyword);
 }
 
@@ -4473,12 +4475,12 @@ function openDetailModal(idx) {
         </div>`;
     });
     
-    document.getElementById('detailModalBody').innerHTML = html;
-    document.getElementById('detailModal').classList.add('show');
+    document.getElementById('detailModalBody')?.innerHTML && (document.getElementById('detailModalBody').innerHTML = html);
+    document.getElementById('detailModal')?.classList.add('show');
 }
 
 function closeDetailModal() {
-    document.getElementById('detailModal').classList.remove('show');
+    document.getElementById('detailModal')?.classList.remove('show');
     currentDetailIdx = -1;
 }
 
@@ -5718,7 +5720,7 @@ document.addEventListener('click', e => {
 function resetSheetData() {
     const sheet = WB[SHEET];
     if (!sheet) return;
-    document.getElementById('resetMenu').classList.remove('show');
+    document.getElementById('resetMenu')?.classList.remove('show');
     
     if (sheet.data.length === 0) {
         toast('이미 비어있습니다');
@@ -5740,7 +5742,7 @@ function resetSheetData() {
 function resetSheetAll() {
     const sheet = WB[SHEET];
     if (!sheet) return;
-    document.getElementById('resetMenu').classList.remove('show');
+    document.getElementById('resetMenu')?.classList.remove('show');
     
     if (!confirm(`'${SHEET}' 시트 전체를 초기화하시겠습니까?\n(헤더와 데이터 모두 삭제됩니다)`)) return;
     saveState('전체 초기화');
@@ -6610,7 +6612,8 @@ function addNewEntry() {
     
     // 신규 입력 모드 ON
     NEW_ENTRY_MODE = true;
-    document.getElementById('finishEntryBtn').style.display = 'inline-flex';
+    const finishBtn = document.getElementById('finishEntryBtn');
+    if (finishBtn) finishBtn.style.display = 'inline-flex';
     document.body.style.borderTop = '3px solid #4CAF50';
     
     renderSpreadsheet();
@@ -6631,7 +6634,8 @@ function addNewEntry() {
 function finishNewEntryMode() {
     if (!NEW_ENTRY_MODE) return;
     NEW_ENTRY_MODE = false;
-    document.getElementById('finishEntryBtn').style.display = 'none';
+    const finishBtn = document.getElementById('finishEntryBtn');
+    if (finishBtn) finishBtn.style.display = 'none';
     document.body.style.borderTop = 'none';
     if (EDITING) finishEditOnly();
     toast('입력 완료');
@@ -6792,8 +6796,8 @@ function pasteCell() {
 
 function showCellContextMenu(e, row, col) {
     selectCell(row, col);
-    document.getElementById('colContextMenu').classList.remove('show');
-    document.getElementById('rowContextMenu').classList.remove('show');
+    document.getElementById('colContextMenu')?.classList.remove('show');
+    document.getElementById('rowContextMenu')?.classList.remove('show');
     const menu = document.getElementById('contextMenu');
     menu.style.left = e.pageX + 'px';
     menu.style.top = e.pageY + 'px';
@@ -6977,9 +6981,9 @@ function showMorePages() {
     }
 }
 
-function showLoading(text) { document.getElementById('loadingText').textContent = text; document.getElementById('loading').classList.add('show'); }
-function hideLoading() { document.getElementById('loading').classList.remove('show'); }
-function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2000); }
+function showLoading(text) { const lt = document.getElementById('loadingText'); const ld = document.getElementById('loading'); if (lt) lt.textContent = text; if (ld) ld.classList.add('show'); }
+function hideLoading() { const ld = document.getElementById('loading'); if (ld) ld.classList.remove('show'); }
+function toast(msg) { const t = document.getElementById('toast'); if (!t) return; t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2000); }
 
 // ========== 휴지통 시스템 ==========
 
@@ -16324,7 +16328,7 @@ function autoFitSelectedCol() {
             autoFitColumnWidth(realCol);
         }
     }
-    document.getElementById('colContextMenu').classList.remove('show');
+    document.getElementById('colContextMenu')?.classList.remove('show');
 }
 
 // 선택된 행 자동 맞춤 (컨텍스트 메뉴용)
@@ -16337,7 +16341,7 @@ function autoFitSelectedRow() {
         renderSpreadsheet();
         toast('행 높이 초기화');
     }
-    document.getElementById('rowContextMenu').classList.remove('show');
+    document.getElementById('rowContextMenu')?.classList.remove('show');
 }
 
 // ===================================================================
