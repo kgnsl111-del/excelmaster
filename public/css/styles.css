@@ -1139,10 +1139,18 @@
             flex-direction: column;
             gap: 12px;
         }
+        .main-header.compact {
+            padding: 10px 20px;
+            gap: 0;
+        }
         .main-header-row {
             display: flex;
             align-items: center;
             gap: 15px;
+        }
+        .main-header-row.single {
+            justify-content: space-between;
+            gap: 12px;
         }
         .main-header-row.top {
             justify-content: space-between;
@@ -1156,6 +1164,86 @@
         }
         .main-header-row.bottom {
             justify-content: flex-start;
+        }
+        .header-compact-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+        }
+        .main-search.compact {
+            width: 180px;
+            padding: 7px 12px;
+            font-size: 12px;
+        }
+        .main-btn.compact {
+            padding: 7px 12px;
+            font-size: 11px;
+        }
+        .user-info.compact {
+            padding: 5px 10px;
+            gap: 8px;
+        }
+        .user-info.compact .user-name {
+            font-size: 11px;
+        }
+        .logout-btn.compact {
+            padding: 4px 8px;
+            font-size: 10px;
+        }
+
+        /* 기간 드롭다운 */
+        .date-dropdown-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+        .date-dropdown-btn {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .date-dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: white;
+            border: 2px solid var(--retro-charcoal);
+            border-radius: 6px;
+            box-shadow: 4px 4px 0 rgba(0,0,0,0.2);
+            z-index: 1000;
+            min-width: 200px;
+            margin-top: 5px;
+        }
+        .date-dropdown-menu.show {
+            display: block;
+        }
+        .date-dropdown-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            font-size: 13px;
+            color: var(--retro-charcoal);
+            transition: background 0.1s;
+        }
+        .date-dropdown-item:hover {
+            background: var(--retro-mint);
+        }
+        .date-dropdown-divider {
+            height: 1px;
+            background: var(--retro-border);
+            margin: 5px 0;
+        }
+        .date-dropdown-custom {
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+        .date-input.compact {
+            padding: 5px 8px;
+            font-size: 11px;
+            width: 110px;
         }
         .header-group {
             display: flex;

@@ -261,63 +261,49 @@
     
     <!-- 메인 화면 -->
     <div id="mainScreen" style="display:none;">
-        <div class="main-header">
-            <!-- 상단 행: 타이틀 + 사용자 정보 -->
-            <div class="main-header-row top">
+        <div class="main-header compact">
+            <!-- 간소화된 단일 헤더 -->
+            <div class="main-header-row single">
                 <div class="main-title">엑셀마스터</div>
-                <div class="main-actions">
-                    <div class="user-info" id="userInfo">
-                        <img class="user-avatar" id="userAvatar" src="" alt="">
-                        <span class="user-name" id="userName"></span>
-                        <button class="logout-btn" onclick="logout()">로그아웃</button>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- 중간 행: 파일/시트 관리 + 서버 연동 -->
-            <div class="main-header-row middle">
-                <div class="header-group">
-                    <span class="header-group-label">검색</span>
-                    <input type="text" id="mainSearchInput" class="main-search" placeholder="전체 시트 검색..." oninput="handleMainSearchInput(event)" onkeydown="handleMainSearchKeydown(event)" oncompositionstart="isComposing=true" oncompositionend="isComposing=false; doMainSearch()">
-                    <button class="main-btn" onclick="doMainSearch()">검색</button>
-                </div>
-                
-                <div class="header-group">
-                    <span class="header-group-label">파일</span>
+
+                <div class="header-compact-group">
+                    <input type="text" id="mainSearchInput" class="main-search compact" placeholder="검색..." oninput="handleMainSearchInput(event)" onkeydown="handleMainSearchKeydown(event)" oncompositionstart="isComposing=true" oncompositionend="isComposing=false; doMainSearch()">
+
                     <input type="file" id="mainFileInput" class="file-input" accept=".xlsx,.xls,.csv,.tsv,.txt,.pdf,.pptx,.docx,.html,.htm">
-                    <button class="main-btn primary" onclick="document.getElementById('mainFileInput').click()">파일 열기</button>
-                    <button class="main-btn" onclick="addSheetFromMain()">새 시트</button>
-                    <button class="main-btn" onclick="showNewDocModal()" style="background:var(--retro-lavender);color:white;">새 문서</button>
-                </div>
-                
-                <div class="header-group">
-                    <span class="header-group-label">서버</span>
-                    <button class="main-btn" onclick="simpleServerSave()" style="background:var(--retro-green);color:white;">⬆️ 저장</button>
-                    <button class="main-btn" onclick="simpleServerLoad()" style="background:var(--retro-blue);color:white;">⬇️ 불러오기</button>
-                </div>
-            </div>
-            
-            <!-- 하단 행: 기간 검색 -->
-            <div class="main-header-row bottom">
-                <div class="header-group">
-                    <span class="header-group-label">기간</span>
-                    <input type="date" id="dateFrom" class="date-input">
-                    <span class="date-separator">~</span>
-                    <input type="date" id="dateTo" class="date-input">
-                    <button class="main-btn" onclick="doDateSearch()">기간 검색</button>
-                </div>
-                
-                <div class="header-group" style="border-right:none;">
-                    <span class="header-group-label">빠른 선택</span>
-                    <div class="quick-dates">
-                        <button class="quick-date-btn" onclick="setQuickDate('all')">전체</button>
-                        <button class="quick-date-btn" onclick="setQuickDate('today')">오늘</button>
-                        <button class="quick-date-btn" onclick="setQuickDate('week')">이번주</button>
-                        <button class="quick-date-btn" onclick="setQuickDate('month')">이번달</button>
-                        <button class="quick-date-btn" onclick="setQuickDate('3months')">최근3개월</button>
-                        <button class="quick-date-btn" onclick="setQuickDate('6months')">6개월</button>
-                        <button class="quick-date-btn" onclick="setQuickDate('1year')">1년</button>
+                    <button class="main-btn compact" onclick="document.getElementById('mainFileInput').click()">📁 열기</button>
+                    <button class="main-btn compact" onclick="addSheetFromMain()">➕ 새시트</button>
+
+                    <button class="main-btn compact" onclick="simpleServerSave()" style="background:var(--retro-green);color:white;">⬆️ 저장</button>
+                    <button class="main-btn compact" onclick="simpleServerLoad()" style="background:var(--retro-blue);color:white;">⬇️ 불러오기</button>
+
+                    <!-- 기간 드롭다운 -->
+                    <div class="date-dropdown-wrapper">
+                        <button class="main-btn compact date-dropdown-btn" onclick="toggleDateDropdown()">
+                            📅 <span id="selectedDateLabel">전체</span> ▼
+                        </button>
+                        <div class="date-dropdown-menu" id="dateDropdownMenu">
+                            <div class="date-dropdown-item" onclick="setQuickDate('all')">전체</div>
+                            <div class="date-dropdown-item" onclick="setQuickDate('today')">오늘</div>
+                            <div class="date-dropdown-item" onclick="setQuickDate('week')">이번주</div>
+                            <div class="date-dropdown-item" onclick="setQuickDate('month')">이번달</div>
+                            <div class="date-dropdown-item" onclick="setQuickDate('3months')">최근 3개월</div>
+                            <div class="date-dropdown-item" onclick="setQuickDate('6months')">6개월</div>
+                            <div class="date-dropdown-item" onclick="setQuickDate('1year')">1년</div>
+                            <div class="date-dropdown-divider"></div>
+                            <div class="date-dropdown-custom">
+                                <input type="date" id="dateFrom" class="date-input compact">
+                                <span>~</span>
+                                <input type="date" id="dateTo" class="date-input compact">
+                                <button class="main-btn compact" onclick="doDateSearch()">적용</button>
+                            </div>
+                        </div>
                     </div>
+                </div>
+
+                <div class="user-info compact" id="userInfo">
+                    <img class="user-avatar" id="userAvatar" src="" alt="">
+                    <span class="user-name" id="userName"></span>
+                    <button class="logout-btn compact" onclick="logout()">로그아웃</button>
                 </div>
             </div>
         </div>
@@ -3202,52 +3188,94 @@ function handleMainSearchKeydown(e) {
 function setQuickDate(type) {
     const today = new Date();
     let fromDate, toDate;
-    
+    let labelText = '전체';
+
+    // 드롭다운 닫기
+    closeDateDropdown();
+
     if (type === 'all') {
         document.getElementById('dateFrom').value = '';
         document.getElementById('dateTo').value = '';
+        updateDateLabel('전체');
         // 전체 선택 시 바로 전체 데이터 표시
         doDateSearchAll();
         return;
     }
-    
+
     toDate = today.toISOString().slice(0, 10);
-    
+
     switch(type) {
         case 'today':
             fromDate = toDate;
+            labelText = '오늘';
             break;
         case 'week':
             const dayOfWeek = today.getDay();
             const monday = new Date(today);
             monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
             fromDate = monday.toISOString().slice(0, 10);
+            labelText = '이번주';
             break;
         case 'month':
             fromDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
+            labelText = '이번달';
             break;
         case '3months':
             const threeMonthsAgo = new Date(today);
             threeMonthsAgo.setMonth(today.getMonth() - 3);
             fromDate = threeMonthsAgo.toISOString().slice(0, 10);
+            labelText = '3개월';
             break;
         case '6months':
             const sixMonthsAgo = new Date(today);
             sixMonthsAgo.setMonth(today.getMonth() - 6);
             fromDate = sixMonthsAgo.toISOString().slice(0, 10);
+            labelText = '6개월';
             break;
         case '1year':
             const oneYearAgo = new Date(today);
             oneYearAgo.setFullYear(today.getFullYear() - 1);
             fromDate = oneYearAgo.toISOString().slice(0, 10);
+            labelText = '1년';
             break;
     }
-    
+
     document.getElementById('dateFrom').value = fromDate;
     document.getElementById('dateTo').value = toDate;
-    
+    updateDateLabel(labelText);
+
     // 바로 날짜 범위 검색 실행
     doDateSearch();
+}
+
+// 기간 드롭다운 토글
+function toggleDateDropdown() {
+    const menu = document.getElementById('dateDropdownMenu');
+    if (!menu) return;
+    menu.classList.toggle('show');
+
+    if (menu.classList.contains('show')) {
+        setTimeout(() => {
+            document.addEventListener('click', closeDateDropdownOnClickOutside, { once: true });
+        }, 10);
+    }
+}
+
+function closeDateDropdown() {
+    const menu = document.getElementById('dateDropdownMenu');
+    if (menu) menu.classList.remove('show');
+}
+
+function closeDateDropdownOnClickOutside(e) {
+    const wrapper = document.querySelector('.date-dropdown-wrapper');
+    if (wrapper && !wrapper.contains(e?.target)) {
+        closeDateDropdown();
+    }
+}
+
+function updateDateLabel(text) {
+    const label = document.getElementById('selectedDateLabel');
+    if (label) label.textContent = text;
 }
 
 // 전체 데이터 검색 (날짜 제한 없음)
