@@ -9157,6 +9157,7 @@ var rawFileSortOrder = 'desc';      // 정렬 순서: 'asc', 'desc'
 var rawFileViewMode = 'list';       // 뷰 모드: 'list', 'card', 'icon'
 var selectedRawFiles = new Set();   // 선택된 원본 파일들
 var rawFileSelectMode = false;      // 선택 모드 활성화 여부
+var rawFileToSheetMapping = {};     // 원본 파일 → 시트 연결 매핑
 
 // ===== 파일 보관함 성능 최적화 =====
 let fileRenderTimeout = null; // 렌더링 디바운스
@@ -11911,6 +11912,8 @@ function renderRawFilesList() {
         const isSelected = selectedRawFiles.has(fileName);
         const safeFileName = fileName.replace(/'/g, "\\'");
         const checkboxHtml = rawFileSelectMode ? `<input type="checkbox" class="raw-file-checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleRawFileSelection('${safeFileName}')">` : '';
+        const linkedCount = getLinkedSheetCount(fileName);
+        const linkedBadge = linkedCount > 0 ? `<span class="linked-sheet-badge" title="연결된 시트 ${linkedCount}개">🔗${linkedCount}</span>` : '';
 
         if (rawFileViewMode === 'icon') {
             // 아이콘 뷰
@@ -11930,6 +11933,7 @@ function renderRawFilesList() {
                     <div class="raw-file-card-header">
                         <span class="raw-file-card-icon">📊</span>
                         <span class="raw-file-card-name" title="${escHtml(fileName)}">${escHtml(fileName)}</span>
+                        ${linkedBadge}
                     </div>
                     <div class="raw-file-card-meta">
                         <div>📝 ${totalRows.toLocaleString()}행</div>
@@ -11937,6 +11941,7 @@ function renderRawFilesList() {
                     </div>
                     <div class="raw-file-card-date">📅 ${lastUpdated}</div>
                     ${!rawFileSelectMode ? `<div class="raw-file-card-actions">
+                        <button class="copy-to-sheet" onclick="event.stopPropagation(); copyRawFileToSheets('${safeFileName}')" title="시트로 복사">📑 복사</button>
                         <button onclick="event.stopPropagation(); downloadRawFile('${safeFileName}')">다운로드</button>
                         <button class="danger" onclick="event.stopPropagation(); deleteRawFile('${safeFileName}')">삭제</button>
                     </div>` : ''}
@@ -11949,7 +11954,7 @@ function renderRawFilesList() {
                     ${checkboxHtml}
                     <div class="raw-file-icon">📊</div>
                     <div class="raw-file-info">
-                        <div class="raw-file-name">${escHtml(fileName)}</div>
+                        <div class="raw-file-name">${escHtml(fileName)} ${linkedBadge}</div>
                         <div class="raw-file-meta">
                             <span>📅 ${lastUpdated}</span>
                             <span>📝 ${totalRows.toLocaleString()}행</span>
@@ -11965,6 +11970,7 @@ function renderRawFilesList() {
                         </div>
                     </div>
                     ${!rawFileSelectMode ? `<div class="raw-file-actions">
+                        <button class="raw-file-btn copy-to-sheet" onclick="event.stopPropagation(); copyRawFileToSheets('${safeFileName}')" title="시트로 복사">📑</button>
                         <button class="raw-file-btn" onclick="event.stopPropagation(); showRawFileHistory('${safeFileName}')" title="업로드 이력">📋</button>
                         <button class="raw-file-btn" onclick="event.stopPropagation(); downloadRawFile('${safeFileName}')">다운로드</button>
                         <button class="raw-file-btn danger" onclick="event.stopPropagation(); deleteRawFile('${safeFileName}')">삭제</button>
@@ -12211,6 +12217,184 @@ function showRawFileHistory(fileName) {
     });
 
     document.body.appendChild(modal);
+}
+
+// ========== 원본→시트 연동 기능 ==========
+
+// 원본 파일을 시트 목록(WB)으로 복사
+function copyRawFileToSheets(fileName) {
+    if (!rawFiles[fileName]) {
+        showToast('파일을 찾을 수 없습니다.', 'error');
+        return;
+    }
+
+    const file = rawFiles[fileName];
+    const sheetNames = Object.keys(file.sheets);
+
+    if (sheetNames.length === 0) {
+        showToast('복사할 시트가 없습니다.', 'error');
+        return;
+    }
+
+    // 시트가 여러 개인 경우 선택 모달 표시
+    if (sheetNames.length > 1) {
+        showCopySheetSelectModal(fileName, sheetNames);
+    } else {
+        // 시트가 1개인 경우 바로 복사
+        copyRawSheetToWB(fileName, sheetNames[0]);
+    }
+}
+
+// 복사할 시트 선택 모달
+function showCopySheetSelectModal(fileName, sheetNames) {
+    const file = rawFiles[fileName];
+    const displayName = file.displayName || fileName;
+
+    const modal = document.createElement('div');
+    modal.className = 'raw-file-history-modal';
+    modal.innerHTML = `
+        <div class="history-modal-content copy-sheet-modal">
+            <div class="history-modal-header">
+                <h3>📋 시트로 복사 - ${escHtml(displayName)}</h3>
+                <button class="history-modal-close" onclick="this.closest('.raw-file-history-modal').remove()">&times;</button>
+            </div>
+            <div class="history-modal-body">
+                <p style="margin-bottom: 15px; color: #666;">복사할 시트를 선택하세요:</p>
+                <div class="copy-sheet-list">
+                    ${sheetNames.map(sheetName => {
+                        const sheet = file.sheets[sheetName];
+                        const rowCount = sheet.data ? sheet.data.length : 0;
+                        return `
+                            <div class="copy-sheet-item" onclick="copyRawSheetToWB('${escHtml(fileName)}', '${escHtml(sheetName)}'); this.closest('.raw-file-history-modal').remove();">
+                                <span class="copy-sheet-name">📄 ${escHtml(sheetName)}</span>
+                                <span class="copy-sheet-rows">${rowCount.toLocaleString()}행</span>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;">
+                    <button class="btn-copy-all" onclick="copyAllRawSheetsToWB('${escHtml(fileName)}'); this.closest('.raw-file-history-modal').remove();">
+                        📑 모든 시트 복사 (${sheetNames.length}개)
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
+
+    document.body.appendChild(modal);
+}
+
+// 단일 시트 복사 (원본 → WB)
+function copyRawSheetToWB(fileName, sheetName, silent = false) {
+    if (!rawFiles[fileName] || !rawFiles[fileName].sheets[sheetName]) {
+        if (!silent) showToast('시트를 찾을 수 없습니다.', 'error');
+        return null;
+    }
+
+    const file = rawFiles[fileName];
+    const sheetData = file.sheets[sheetName];
+    const displayName = file.displayName || fileName.replace(/\s*\d{4}\.\d{2}\.\d{2}/g, '').replace(/\.xlsx?$/i, '').trim() || fileName;
+
+    // 새 시트명 생성 (중복 방지)
+    let newSheetName = `${displayName} - ${sheetName}`;
+    let counter = 1;
+    while (WB[newSheetName]) {
+        newSheetName = `${displayName} - ${sheetName} (${counter++})`;
+    }
+
+    // 헤더와 데이터 복사 (깊은 복사)
+    const headers = [...(sheetData.headers || [])];
+    const rawData = sheetData.data || [];
+
+    // 날짜 열 인덱스 찾기
+    const dateColIndices = new Set();
+    headers.forEach((h, idx) => {
+        if (h && (h.includes('날짜') || h.includes('일자') || h.includes('일시') ||
+                  h.includes('Date') || h.includes('date') || h.includes('DATE') ||
+                  h === '작성일' || h === '입금일' || h === '퇴사날짜' || h === '입사일' ||
+                  h === '완료예정일' || h === '예약일정' || h.includes('예정일'))) {
+            dateColIndices.add(idx);
+        }
+    });
+
+    // 데이터 처리 - 날짜 변환 적용
+    const processedData = rawData.map(row => {
+        if (!row) return [];
+        return row.map((cell, idx) => {
+            if ((idx === 0 || dateColIndices.has(idx)) && cell !== '' && cell !== null && cell !== undefined) {
+                return convertToKoreanDate(cell);
+            }
+            return cell;
+        });
+    });
+
+    // WB에 시트 추가
+    WB[newSheetName] = {
+        headers: headers,
+        data: processedData
+    };
+    COL_ORDER[newSheetName] = headers.map((_, i) => i);
+    HIDDEN_COLS[newSheetName] = new Set();
+    autoFitColumnWidths(newSheetName);
+
+    // 연결 정보 저장
+    if (!rawFileToSheetMapping) {
+        window.rawFileToSheetMapping = {};
+    }
+    if (!rawFileToSheetMapping[fileName]) {
+        rawFileToSheetMapping[fileName] = [];
+    }
+    rawFileToSheetMapping[fileName].push({
+        sheetName: newSheetName,
+        sourceSheet: sheetName,
+        copiedAt: new Date().toISOString()
+    });
+
+    if (!silent) {
+        showToast(`"${sheetName}" 시트가 복사되었습니다.`, 'success');
+    }
+
+    return newSheetName;
+}
+
+// 모든 시트 복사
+function copyAllRawSheetsToWB(fileName) {
+    if (!rawFiles[fileName]) {
+        showToast('파일을 찾을 수 없습니다.', 'error');
+        return;
+    }
+
+    const sheetNames = Object.keys(rawFiles[fileName].sheets);
+    let copiedCount = 0;
+
+    sheetNames.forEach(sheetName => {
+        const result = copyRawSheetToWB(fileName, sheetName, true);
+        if (result) copiedCount++;
+    });
+
+    if (copiedCount > 0) {
+        showToast(`${copiedCount}개 시트가 복사되었습니다.`, 'success');
+        renderMainScreen();
+        saveState();
+    }
+}
+
+// 원본 파일과 시트 연결 상태 확인
+function getRawFileLinkedSheets(fileName) {
+    if (!rawFileToSheetMapping || !rawFileToSheetMapping[fileName]) {
+        return [];
+    }
+    // 실제로 존재하는 시트만 반환
+    return rawFileToSheetMapping[fileName].filter(link => WB[link.sheetName]);
+}
+
+// 연결된 시트 수 가져오기
+function getLinkedSheetCount(fileName) {
+    return getRawFileLinkedSheets(fileName).length;
 }
 
 // 원본 파일 선택
