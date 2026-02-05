@@ -1552,33 +1552,41 @@ function toggleDownloadMode() {
     }
     if (favoriteMode) {
         favoriteMode = false;
-        document.getElementById('favoriteModeBtn').classList.remove('active');
-        document.getElementById('favoriteModeBtn').textContent = '즐겨찾기';
-        document.getElementById('sheetGrid').classList.remove('favorite-mode');
+        const favBtn = document.getElementById('favoriteModeBtn');
+        if (favBtn) {
+            favBtn.classList.remove('active');
+            favBtn.textContent = '즐겨찾기';
+        }
+        document.getElementById('sheetGrid')?.classList.remove('favorite-mode');
     }
-    
+
     downloadMode = !downloadMode;
     const btn = document.getElementById('downloadModeBtn');
     const grid = document.getElementById('sheetGrid');
     const actions = document.getElementById('downloadActions');
-    
+
     if (downloadMode) {
-        btn.classList.add('active');
-        btn.textContent = '취소';
-        grid.classList.add('download-mode');
-        actions.classList.add('show');
+        if (btn) {
+            btn.classList.add('active');
+            btn.textContent = '취소';
+        }
+        grid?.classList.add('download-mode');
+        actions?.classList.add('show');
         selectedSheets.clear();
         updateDownloadSelectedCount();
     } else {
-        btn.classList.remove('active');
-        btn.textContent = '다운로드';
-        grid.classList.remove('download-mode');
-        actions.classList.remove('show');
+        if (btn) {
+            btn.classList.remove('active');
+            btn.textContent = '다운로드';
+        }
+        grid?.classList.remove('download-mode');
+        actions?.classList.remove('show');
         selectedSheets.clear();
         // 선택 상태 초기화
         document.querySelectorAll('.sheet-card.selected').forEach(card => card.classList.remove('selected'));
         document.querySelectorAll('.sheet-card-checkbox').forEach(cb => cb.checked = false);
-        document.getElementById('selectAllSheets').checked = false;
+        const selectAll = document.getElementById('selectAllSheets');
+        if (selectAll) selectAll.checked = false;
     }
 }
 
