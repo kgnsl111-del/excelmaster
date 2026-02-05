@@ -105,6 +105,13 @@
         let gcTimer = null; // 가비지 컬렉션 타이머
         let isLargeFile = false; // 대용량 파일 플래그
 
+        // 파일 그룹 시스템 (원본 파일 → 시트 매핑)
+        let fileGroups = {}; // { fileId: { name, uploadedAt, sheets: [sheetName1, sheetName2, ...] } }
+        let sheetToFileGroup = {}; // { sheetName: fileId }
+        let collapsedFileGroups = new Set(); // 접힌 파일 그룹들
+        let fileGroupViewMode = 'grouped'; // 'grouped' (파일별) or 'flat' (전체 시트)
+        let currentUploadFileName = ''; // 현재 업로드 중인 파일명
+
         // 휴지통 시스템
         let trashBin = []; // { name, data, colOrder, hiddenCols, colWidths, rowHeights, folderId, deletedAt }
         const TRASH_EXPIRE_DAYS = 7; // 휴지통 보관 기간 (7일)
@@ -1506,50 +1513,148 @@ function renderMainScreen() {
 
     // 변경 의심 건 렌더링
     renderPendingChanges();
-    
+
     // 검색 결과는 유지 (초기화하지 않음)
 
-    // 현재 폴더의 하위 폴더들 가져오기
-    const childFolders = Object.entries(sheetFolders)
-        .filter(([id, folder]) => folder.parentId === currentFolderId)
-        .map(([id, folder]) => ({ id, ...folder }));
+    // 파일 그룹 뷰 모드일 때
+    if (fileGroupViewMode === 'grouped' && currentFolderId === null && !showFavoritesOnly) {
+        grid.innerHTML = renderFileGroupedView(nonEmptySheets);
+    } else {
+        // 기존 플랫 뷰 (폴더 뷰)
+        // 현재 폴더의 하위 폴더들 가져오기
+        const childFolders = Object.entries(sheetFolders)
+            .filter(([id, folder]) => folder.parentId === currentFolderId)
+            .map(([id, folder]) => ({ id, ...folder }));
 
-    // 폴더와 시트가 모두 없으면 빈 상태 표시
-    if (nonEmptySheets.length === 0 && childFolders.length === 0) {
-        grid.innerHTML = renderEmptyState();
-        return;
+        // 폴더와 시트가 모두 없으면 빈 상태 표시
+        if (nonEmptySheets.length === 0 && childFolders.length === 0) {
+            grid.innerHTML = renderEmptyState();
+            // 모드 상태 적용
+            applyGridModeClasses(grid);
+            return;
+        }
+
+        // 아이콘 뷰 레이아웃 설정
+        const iconLayout = { width: 90, height: 95, cols: 8 };
+        let autoIndex = 0;
+        let html = '';
+
+        // 폴더 먼저 렌더링
+        for (const folder of childFolders) {
+            html += renderFolderCardHtml(folder, autoIndex, iconLayout);
+            autoIndex++;
+        }
+
+        // 시트 렌더링
+        for (const name of nonEmptySheets) {
+            html += renderSheetCardHtml(name, autoIndex, iconLayout);
+            autoIndex++;
+        }
+
+        grid.innerHTML = html;
     }
-
-    // 아이콘 뷰 레이아웃 설정
-    const iconLayout = { width: 90, height: 95, cols: 8 };
-    let autoIndex = 0;
-    let html = '';
-
-    // 폴더 먼저 렌더링
-    for (const folder of childFolders) {
-        html += renderFolderCardHtml(folder, autoIndex, iconLayout);
-        autoIndex++;
-    }
-
-    // 시트 렌더링
-    for (const name of nonEmptySheets) {
-        html += renderSheetCardHtml(name, autoIndex, iconLayout);
-        autoIndex++;
-    }
-
-    grid.innerHTML = html;
 
     // 모드 상태 적용
     applyGridModeClasses(grid);
-    
+
     // 드래그 선택 초기화
     initDragSelect();
-    
+
     // 메인 화면 키보드 단축키 초기화
     setupMainScreenKeyboard();
-    
+
     // 자동 저장 (디바운스)
     debouncedSaveToLocalStorage();
+}
+
+// 파일 그룹별 뷰 렌더링
+function renderFileGroupedView(allSheets) {
+    const iconLayout = { width: 90, height: 95, cols: 8 };
+    let html = '';
+
+    // 뷰 모드 전환 버튼
+    html += `
+        <div class="file-group-view-toggle">
+            <button class="view-toggle-btn active" onclick="fileGroupViewMode='grouped'; renderMainScreen();">📁 파일별</button>
+            <button class="view-toggle-btn" onclick="fileGroupViewMode='flat'; renderMainScreen();">📄 전체 시트</button>
+        </div>
+    `;
+
+    // 파일 그룹들 정렬 (최신 업로드 순)
+    const sortedGroups = Object.entries(fileGroups)
+        .map(([id, group]) => ({ id, ...group }))
+        .sort((a, b) => (b.uploadedAt || 0) - (a.uploadedAt || 0));
+
+    // 그룹화된 시트들
+    const groupedSheetNames = new Set();
+
+    // 각 파일 그룹 렌더링
+    for (const group of sortedGroups) {
+        // 실제 존재하는 시트만 필터링
+        const validSheets = group.sheets.filter(name =>
+            WB[name] && WB[name].data && WB[name].data.length > 0 &&
+            allSheets.includes(name)
+        );
+
+        if (validSheets.length === 0) continue;
+
+        validSheets.forEach(name => groupedSheetNames.add(name));
+
+        const isCollapsed = collapsedFileGroups.has(group.id);
+        const totalRows = validSheets.reduce((sum, name) => sum + (WB[name]?.data?.length || 0), 0);
+
+        html += `
+            <div class="file-group" data-file-id="${group.id}">
+                <div class="file-group-header" onclick="toggleFileGroupCollapse('${group.id}')">
+                    <span class="file-group-toggle">${isCollapsed ? '▶' : '▼'}</span>
+                    <span class="file-group-icon">📁</span>
+                    <span class="file-group-name">${escHtml(group.name)}</span>
+                    <span class="file-group-meta">${validSheets.length}개 시트 · ${totalRows}건</span>
+                    <div class="file-group-actions" onclick="event.stopPropagation();">
+                        <button class="file-group-btn" onclick="downloadFileGroup('${group.id}')" title="다운로드">📥</button>
+                        <button class="file-group-btn" onclick="renameFileGroup('${group.id}')" title="이름변경">✏️</button>
+                        <button class="file-group-btn danger" onclick="deleteFileGroup('${group.id}')" title="삭제">🗑️</button>
+                    </div>
+                </div>
+                ${isCollapsed ? '' : `
+                    <div class="file-group-sheets">
+                        ${validSheets.map((name, idx) => renderSheetCardHtml(name, idx, iconLayout)).join('')}
+                    </div>
+                `}
+            </div>
+        `;
+    }
+
+    // 미등록 시트들 (기타)
+    const ungroupedSheets = allSheets.filter(name => !groupedSheetNames.has(name));
+
+    if (ungroupedSheets.length > 0) {
+        const isCollapsed = collapsedFileGroups.has('__ungrouped__');
+        const totalRows = ungroupedSheets.reduce((sum, name) => sum + (WB[name]?.data?.length || 0), 0);
+
+        html += `
+            <div class="file-group ungrouped" data-file-id="__ungrouped__">
+                <div class="file-group-header" onclick="toggleFileGroupCollapse('__ungrouped__')">
+                    <span class="file-group-toggle">${isCollapsed ? '▶' : '▼'}</span>
+                    <span class="file-group-icon">📋</span>
+                    <span class="file-group-name">기타 시트</span>
+                    <span class="file-group-meta">${ungroupedSheets.length}개 시트 · ${totalRows}건</span>
+                </div>
+                ${isCollapsed ? '' : `
+                    <div class="file-group-sheets">
+                        ${ungroupedSheets.map((name, idx) => renderSheetCardHtml(name, idx, iconLayout)).join('')}
+                    </div>
+                `}
+            </div>
+        `;
+    }
+
+    // 비어있는 경우
+    if (sortedGroups.length === 0 && ungroupedSheets.length === 0) {
+        html += renderEmptyState();
+    }
+
+    return html;
 }
 
 function openSheet(name) {
@@ -3204,6 +3309,7 @@ function deleteSheetFromMain(name) {
     if (favoriteSheets) favoriteSheets.delete(name);
     if (newSheets) newSheets.delete(name);
     if (multiSelectedSheets) multiSelectedSheets.delete(name);
+    removeSheetFromFileGroup(name); // 파일 그룹에서 제거
     saveFolderData(); // 폴더 매핑 변경 저장
 
     // 현재 시트가 삭제된 경우 다른 시트로 전환
@@ -5254,6 +5360,11 @@ async function parseExcelOptimized(data) {
         }
     }
     
+    // 파일 그룹에 시트 등록
+    if (currentUploadFileName && addedSheetNames.length > 0) {
+        registerFileGroup(currentUploadFileName, addedSheetNames);
+    }
+
     // 결과 메시지
     if (addedSheets > 0 && duplicateSheets === 0) {
         toast(`${addedSheets}개 시트 추가됨: ${addedSheetNames.slice(0, 3).join(', ')}${addedSheetNames.length > 3 ? ' 외 ' + (addedSheetNames.length - 3) + '개' : ''}`);
@@ -7235,6 +7346,198 @@ function markAsChanged() {
     hasUnsavedChanges = true;
 }
 
+// ========== 파일 그룹 시스템 ==========
+
+// 파일 그룹에 시트 등록
+function registerFileGroup(fileName, sheetNames) {
+    const fileId = 'file_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+
+    // 기존에 같은 파일명이 있으면 해당 그룹에 추가
+    const existingFileId = Object.keys(fileGroups).find(id => fileGroups[id].name === fileName);
+
+    if (existingFileId) {
+        // 기존 그룹에 시트 추가
+        sheetNames.forEach(sheetName => {
+            if (!fileGroups[existingFileId].sheets.includes(sheetName)) {
+                fileGroups[existingFileId].sheets.push(sheetName);
+            }
+            sheetToFileGroup[sheetName] = existingFileId;
+        });
+    } else {
+        // 새 파일 그룹 생성
+        fileGroups[fileId] = {
+            name: fileName,
+            uploadedAt: Date.now(),
+            sheets: [...sheetNames]
+        };
+        sheetNames.forEach(sheetName => {
+            sheetToFileGroup[sheetName] = fileId;
+        });
+    }
+
+    saveFileGroupsToStorage();
+}
+
+// 파일 그룹에서 시트 제거
+function removeSheetFromFileGroup(sheetName) {
+    const fileId = sheetToFileGroup[sheetName];
+    if (!fileId || !fileGroups[fileId]) return;
+
+    // 시트 목록에서 제거
+    const idx = fileGroups[fileId].sheets.indexOf(sheetName);
+    if (idx > -1) {
+        fileGroups[fileId].sheets.splice(idx, 1);
+    }
+
+    // 시트-파일 매핑 제거
+    delete sheetToFileGroup[sheetName];
+
+    // 파일 그룹에 시트가 없으면 그룹 삭제
+    if (fileGroups[fileId].sheets.length === 0) {
+        delete fileGroups[fileId];
+        collapsedFileGroups.delete(fileId);
+    }
+
+    saveFileGroupsToStorage();
+}
+
+// 파일 그룹 전체 삭제
+function deleteFileGroup(fileId) {
+    const group = fileGroups[fileId];
+    if (!group) return;
+
+    const sheetCount = group.sheets.length;
+    if (!confirm(`"${group.name}" 파일의 ${sheetCount}개 시트를 모두 삭제하시겠습니까?`)) {
+        return;
+    }
+
+    // 휴지통에 저장 후 삭제
+    group.sheets.forEach(sheetName => {
+        if (WB[sheetName]) {
+            moveToTrash(sheetName);
+            delete WB[sheetName];
+            delete COL_ORDER[sheetName];
+            delete HIDDEN_COLS[sheetName];
+            delete COL_WIDTHS[sheetName];
+            delete ROW_HEIGHTS[sheetName];
+            delete sheetToFolder[sheetName];
+            if (favoriteSheets) favoriteSheets.delete(sheetName);
+        }
+        delete sheetToFileGroup[sheetName];
+    });
+
+    delete fileGroups[fileId];
+    collapsedFileGroups.delete(fileId);
+
+    saveFileGroupsToStorage();
+    saveFolderData();
+    renderMainScreen();
+    toast(`"${group.name}" 삭제됨 (${sheetCount}개 시트 → 휴지통)`);
+    hasUnsavedChanges = true;
+}
+
+// 파일 그룹 전체 다운로드
+async function downloadFileGroup(fileId) {
+    const group = fileGroups[fileId];
+    if (!group) return;
+
+    const wb = XLSX.utils.book_new();
+    let sheetCount = 0;
+
+    group.sheets.forEach(sheetName => {
+        const sheet = WB[sheetName];
+        if (!sheet || !sheet.data || sheet.data.length === 0) return;
+
+        const wsData = [sheet.headers, ...sheet.data];
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        // 시트 이름에서 금지 문자 제거
+        const safeName = sheetName.replace(/[:\\\/?*\[\]]/g, '_').substring(0, 31);
+        XLSX.utils.book_append_sheet(wb, ws, safeName);
+        sheetCount++;
+    });
+
+    if (sheetCount === 0) {
+        toast('다운로드할 시트가 없습니다');
+        return;
+    }
+
+    const fileName = group.name.replace(/\.[^/.]+$/, '') + '_export.xlsx';
+    XLSX.writeFile(wb, fileName);
+    toast(`${sheetCount}개 시트 다운로드 완료`);
+}
+
+// 파일 그룹명 변경
+function renameFileGroup(fileId) {
+    const group = fileGroups[fileId];
+    if (!group) return;
+
+    const newName = prompt('새 파일명을 입력하세요:', group.name);
+    if (newName && newName.trim() && newName !== group.name) {
+        group.name = newName.trim();
+        saveFileGroupsToStorage();
+        renderMainScreen();
+        toast('파일명 변경 완료');
+    }
+}
+
+// 파일 그룹 접기/펼치기
+function toggleFileGroupCollapse(fileId) {
+    if (collapsedFileGroups.has(fileId)) {
+        collapsedFileGroups.delete(fileId);
+    } else {
+        collapsedFileGroups.add(fileId);
+    }
+    saveFileGroupsToStorage();
+    renderMainScreen();
+}
+
+// 뷰 모드 변경 (그룹/플랫)
+function toggleFileGroupViewMode() {
+    fileGroupViewMode = fileGroupViewMode === 'grouped' ? 'flat' : 'grouped';
+    saveFileGroupsToStorage();
+    renderMainScreen();
+}
+
+// 파일 그룹 저장
+function saveFileGroupsToStorage() {
+    try {
+        localStorage.setItem('excelmaster_fileGroups', JSON.stringify(fileGroups));
+        localStorage.setItem('excelmaster_sheetToFileGroup', JSON.stringify(sheetToFileGroup));
+        localStorage.setItem('excelmaster_collapsedFileGroups', JSON.stringify([...collapsedFileGroups]));
+        localStorage.setItem('excelmaster_fileGroupViewMode', fileGroupViewMode);
+    } catch (e) {
+        console.warn('파일 그룹 저장 실패:', e);
+    }
+}
+
+// 파일 그룹 불러오기
+function loadFileGroupsFromStorage() {
+    try {
+        const savedGroups = localStorage.getItem('excelmaster_fileGroups');
+        const savedMapping = localStorage.getItem('excelmaster_sheetToFileGroup');
+        const savedCollapsed = localStorage.getItem('excelmaster_collapsedFileGroups');
+        const savedViewMode = localStorage.getItem('excelmaster_fileGroupViewMode');
+
+        if (savedGroups) fileGroups = JSON.parse(savedGroups);
+        if (savedMapping) sheetToFileGroup = JSON.parse(savedMapping);
+        if (savedCollapsed) collapsedFileGroups = new Set(JSON.parse(savedCollapsed));
+        if (savedViewMode) fileGroupViewMode = savedViewMode;
+    } catch (e) {
+        console.warn('파일 그룹 불러오기 실패:', e);
+        fileGroups = {};
+        sheetToFileGroup = {};
+        collapsedFileGroups = new Set();
+    }
+}
+
+// 미등록 시트들을 "기타" 그룹으로
+function getUngroupedSheets() {
+    return Object.keys(WB).filter(name => {
+        if (!WB[name] || !WB[name].data || WB[name].data.length === 0) return false;
+        return !sheetToFileGroup[name];
+    });
+}
+
 // 상태 저장 (실행 취소용)
 function saveState(action) {
     // 시트 존재 확인
@@ -7993,9 +8296,10 @@ function enterApp() {
     // 로컬 저장소에서 데이터 복원 시도
     const hasLocalData = loadFromLocalStorage();
 
-    // 휴지통 및 자동저장 설정 불러오기
+    // 휴지통, 자동저장, 파일 그룹 설정 불러오기
     loadTrashFromStorage();
     loadAutoSaveSettings();
+    loadFileGroupsFromStorage();
     startAutoSave();
 
     // 바로 화면 렌더링 (서버 자동 확인 안 함)
@@ -8247,9 +8551,10 @@ function enterOfflineMode() {
     const hasLocalData = loadFromLocalStorage();
     console.log('오프라인 모드 - 로컬 데이터 있음:', hasLocalData, 'WB 시트 수:', Object.keys(WB).length);
 
-    // 휴지통 및 자동저장 설정 불러오기
+    // 휴지통, 자동저장, 파일 그룹 설정 불러오기
     loadTrashFromStorage();
     loadAutoSaveSettings();
+    loadFileGroupsFromStorage();
 
     renderMainScreen();
 
@@ -15470,23 +15775,26 @@ function handleDocumentUpload(e) {
 // 기존 handleMainUpload를 백업하고 새 함수로 대체
 const handleMainUploadOriginal = async function(file) {
     if (!file) return;
-    
+
     if (file.size > MAX_FILE_SIZE) {
         toast(`파일이 너무 큽니다 (${(file.size/1024/1024).toFixed(1)}MB). 최대 100MB까지 지원합니다.`);
         return;
     }
-    
+
     isLargeFile = file.size > 50 * 1024 * 1024;
     if (isLargeFile) {
         console.log('대용량 파일 모드 활성화');
         startMemoryManagement();
     }
-    
+
     const sizeMB = (file.size / 1024 / 1024).toFixed(1);
     const fileName = file.name.toLowerCase();
-    
+
+    // 파일 그룹 시스템용 파일명 저장
+    currentUploadFileName = file.name;
+
     showLoading(`파일 읽는 중... (${sizeMB}MB)`);
-    
+
     try {
         if (fileName.endsWith('.csv') || fileName.endsWith('.tsv') || fileName.endsWith('.txt')) {
             const text = await readFileAsText(file);
@@ -15499,7 +15807,8 @@ const handleMainUploadOriginal = async function(file) {
         }
         hideLoading();
         saveToLocalStorage(); // 로컬 저장소에 저장
-        
+        saveFileGroupsToStorage(); // 파일 그룹 저장
+
         // 시트 목록 탭으로 전환 및 렌더링
         switchMainTab('sheets');
         renderMainScreen();
@@ -15508,6 +15817,8 @@ const handleMainUploadOriginal = async function(file) {
         console.error(err);
         hideLoading();
         toast('파일 처리 오류');
+    } finally {
+        currentUploadFileName = ''; // 초기화
     }
 };
 

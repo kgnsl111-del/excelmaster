@@ -6888,3 +6888,117 @@
         .trash-modal.show, .autosave-modal.show {
             display: flex;
         }
+
+        /* ========== 파일 그룹 스타일 ========== */
+        .file-group-view-toggle {
+            display: flex;
+            gap: 4px;
+            padding: 10px 12px;
+            background: var(--retro-mint);
+            border-bottom: 1px solid var(--retro-border);
+            border-radius: 8px 8px 0 0;
+            margin-bottom: 12px;
+        }
+        .view-toggle-btn {
+            padding: 6px 14px;
+            border: 1px solid var(--retro-border);
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        .view-toggle-btn:hover {
+            border-color: var(--retro-teal);
+        }
+        .view-toggle-btn.active {
+            background: var(--retro-teal);
+            color: white;
+            border-color: var(--retro-teal);
+        }
+
+        .file-group {
+            margin-bottom: 16px;
+            border: 1px solid var(--retro-border);
+            border-radius: 8px;
+            background: white;
+            overflow: hidden;
+        }
+        .file-group.ungrouped {
+            border-style: dashed;
+            background: var(--retro-cream);
+        }
+        .file-group-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            background: linear-gradient(135deg, var(--retro-mint) 0%, white 100%);
+            border-bottom: 1px solid var(--retro-border);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .file-group-header:hover {
+            background: linear-gradient(135deg, var(--retro-teal) 0%, var(--retro-mint) 100%);
+        }
+        .file-group-header:hover .file-group-name,
+        .file-group-header:hover .file-group-toggle {
+            color: white;
+        }
+        .file-group-toggle {
+            font-size: 10px;
+            color: var(--retro-warm-gray);
+            width: 12px;
+        }
+        .file-group-icon {
+            font-size: 18px;
+        }
+        .file-group-name {
+            font-weight: 600;
+            font-size: 14px;
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .file-group-meta {
+            font-size: 11px;
+            color: var(--retro-warm-gray);
+            white-space: nowrap;
+        }
+        .file-group-actions {
+            display: flex;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .file-group-header:hover .file-group-actions {
+            opacity: 1;
+        }
+        .file-group-btn {
+            padding: 4px 8px;
+            border: none;
+            background: rgba(255,255,255,0.8);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        .file-group-btn:hover {
+            background: white;
+            transform: scale(1.1);
+        }
+        .file-group-btn.danger:hover {
+            background: var(--retro-coral);
+        }
+        .file-group-sheets {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 16px;
+            background: var(--retro-cream);
+        }
+        /* 파일 그룹 내 시트 카드 스타일 조정 */
+        .file-group-sheets .sheet-card {
+            margin: 0;
+        }
