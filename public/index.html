@@ -339,47 +339,21 @@
                         <button class="main-tab" data-tab="rawfiles" onclick="switchMainTab('rawfiles')">원본 파일</button>
                     </div>
                     <span id="sheetCountBadge" class="count-badge" style="margin-left:10px;">0개</span>
-                    <label class="favorite-filter"><input type="checkbox" id="favoriteFilter" onchange="toggleFavoriteFilter()"> 즐겨찾기만</label>
-                    <div class="view-mode-toggle">
-                        <button class="view-mode-btn" id="cardViewBtn" onclick="setSheetViewMode('card')" title="카드 보기">▦</button>
-                        <button class="view-mode-btn" id="listViewModeBtn" onclick="setSheetViewMode('list')" title="리스트 보기">☰</button>
-                        <button class="view-mode-btn active" id="iconViewBtn" onclick="setSheetViewMode('icon')" title="아이콘 보기">•••</button>
-                    </div>
                 </div>
-                <div class="sheet-list-actions">
-                    <div class="action-group">
-                        <div class="download-dropdown-wrapper">
-                            <button class="action-btn download-dropdown-btn" onclick="toggleDownloadDropdown()">
-                                다운로드 ▼
-                            </button>
-                            <div class="download-dropdown-menu" id="downloadDropdownMenu">
-                                <div class="download-dropdown-item" onclick="downloadCurrentSheet()">
-                                    <span class="download-icon">📊</span>
-                                    <div class="download-item-content">
-                                        <div class="download-item-title">현재 시트</div>
-                                        <div class="download-item-desc">열려있는 시트 1개</div>
-                                    </div>
-                                </div>
-                                <div class="download-dropdown-item" onclick="showMultiSelectDownloadModal()">
-                                    <span class="download-icon">☑️</span>
-                                    <div class="download-item-content">
-                                        <div class="download-item-title">여러 항목 선택...</div>
-                                        <div class="download-item-desc">시트, 폴더 직접 선택</div>
-                                    </div>
-                                </div>
-                                <div class="download-dropdown-item" onclick="downloadAllAsZip()">
-                                    <span class="download-icon">📦</span>
-                                    <div class="download-item-content">
-                                        <div class="download-item-title">전체 백업 (ZIP)</div>
-                                        <div class="download-item-desc">모든 시트 + 파일</div>
-                                    </div>
-                                </div>
-                            </div>
+                <div class="sheet-list-actions compact">
+                    <!-- 뷰모드 드롭다운 (통합) -->
+                    <div class="view-dropdown-wrapper">
+                        <button class="action-btn compact" onclick="toggleViewDropdown()" id="viewModeBtn">
+                            <span id="currentViewIcon">•••</span> ▼
+                        </button>
+                        <div class="view-dropdown-menu" id="viewDropdownMenu">
+                            <div class="view-dropdown-item" onclick="setUnifiedViewMode('icon')">••• 아이콘</div>
+                            <div class="view-dropdown-item" onclick="setUnifiedViewMode('card')">▦ 카드</div>
+                            <div class="view-dropdown-item" onclick="setUnifiedViewMode('list')">☰ 리스트</div>
                         </div>
                     </div>
-                    <div class="action-group">
-                        <button class="action-btn favorite-mode-btn" id="favoriteModeBtn" onclick="toggleFavoriteMode()">즐겨찾기</button>
-                    </div>
+                    <label class="favorite-filter compact"><input type="checkbox" id="favoriteFilter" onchange="toggleFavoriteFilter()"> ⭐</label>
+                    <button class="action-btn compact" onclick="showMultiSelectDownloadModal()">📥 다운로드</button>
                     <div class="action-group">
                         <button class="action-btn merge-action-btn" id="mergeActionBtn" onclick="openManualMergeModal()" style="background:var(--retro-coral);color:white;display:none;">병합</button>
                         <button class="action-btn" onclick="resetAllFilters()" style="background:var(--retro-mustard);color:white;">필터 초기화</button>
@@ -436,14 +410,8 @@
                         <option value="totalRows-desc">행 수 많은순</option>
                         <option value="totalRows-asc">행 수 적은순</option>
                     </select>
-                    <div class="raw-file-view-btns">
-                        <button class="raw-file-view-btn active" id="rawFileListViewBtn" onclick="setRawFileViewMode('list')" title="리스트 뷰">☰</button>
-                        <button class="raw-file-view-btn" id="rawFileCardViewBtn" onclick="setRawFileViewMode('card')" title="카드 뷰">▦</button>
-                        <button class="raw-file-view-btn" id="rawFileIconViewBtn" onclick="setRawFileViewMode('icon')" title="아이콘 뷰">▣</button>
-                    </div>
                     <button class="raw-file-select-btn" id="rawFileSelectModeBtn" onclick="toggleRawFileSelectMode()">선택</button>
                     <button class="raw-folder-create-btn" onclick="createRawFileFolder()" title="새 폴더 만들기">📁+</button>
-                    <button class="raw-analytics-btn" onclick="showAnalyticsDashboard()" title="분석 대시보드">📈</button>
                     <span class="raw-file-count">0개 파일</span>
                 </div>
                 <!-- 선택 모드 액션 바 -->
@@ -2385,6 +2353,55 @@ function clearNewBadge(sheetName) {
 function setSheetViewMode(mode) {
     sheetViewMode = mode;
     renderMainScreen();
+}
+
+// 통합 뷰모드 전환 (모든 탭에 적용)
+function setUnifiedViewMode(mode) {
+    closeViewDropdown();
+
+    // 아이콘 업데이트
+    const iconMap = { 'icon': '•••', 'card': '▦', 'list': '☰' };
+    const iconEl = document.getElementById('currentViewIcon');
+    if (iconEl) iconEl.textContent = iconMap[mode] || '•••';
+
+    // 현재 탭에 따라 적절한 뷰모드 설정
+    switch (currentMainTab) {
+        case 'sheets':
+            sheetViewMode = mode;
+            break;
+        case 'files':
+            // 파일 보관함도 같은 뷰모드 적용
+            break;
+        case 'rawfiles':
+            rawFileViewMode = mode;
+            break;
+    }
+    renderMainScreen();
+}
+
+// 뷰모드 드롭다운 토글
+function toggleViewDropdown() {
+    const menu = document.getElementById('viewDropdownMenu');
+    if (!menu) return;
+    menu.classList.toggle('show');
+
+    if (menu.classList.contains('show')) {
+        setTimeout(() => {
+            document.addEventListener('click', closeViewDropdownOnClickOutside, { once: true });
+        }, 10);
+    }
+}
+
+function closeViewDropdown() {
+    const menu = document.getElementById('viewDropdownMenu');
+    if (menu) menu.classList.remove('show');
+}
+
+function closeViewDropdownOnClickOutside(e) {
+    const wrapper = document.querySelector('.view-dropdown-wrapper');
+    if (wrapper && !wrapper.contains(e?.target)) {
+        closeViewDropdown();
+    }
 }
 
 // 전체 필터 초기화

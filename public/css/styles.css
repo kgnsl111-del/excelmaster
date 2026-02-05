@@ -1245,6 +1245,54 @@
             font-size: 11px;
             width: 110px;
         }
+
+        /* 뷰모드 드롭다운 */
+        .view-dropdown-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+        .view-dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: white;
+            border: 2px solid var(--retro-charcoal);
+            border-radius: 6px;
+            box-shadow: 4px 4px 0 rgba(0,0,0,0.2);
+            z-index: 1000;
+            min-width: 120px;
+            margin-top: 5px;
+        }
+        .view-dropdown-menu.show {
+            display: block;
+        }
+        .view-dropdown-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            font-size: 13px;
+            color: var(--retro-charcoal);
+            transition: background 0.1s;
+        }
+        .view-dropdown-item:hover {
+            background: var(--retro-mint);
+        }
+
+        /* 간소화된 액션 버튼 */
+        .sheet-list-actions.compact {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .action-btn.compact {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+        .favorite-filter.compact {
+            font-size: 12px;
+            margin: 0;
+        }
+
         .header-group {
             display: flex;
             align-items: center;
