@@ -6667,3 +6667,224 @@
             color: var(--retro-warm-gray);
             font-style: italic;
         }
+
+        /* ========== 휴지통 스타일 ========== */
+        .trash-modal .modal-content.trash-content {
+            max-width: 500px;
+            max-height: 70vh;
+        }
+        .trash-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: var(--retro-mint);
+            border-bottom: 1px solid var(--retro-border);
+            font-size: 12px;
+            color: var(--retro-warm-gray);
+        }
+        .trash-empty-btn {
+            padding: 4px 12px;
+            background: var(--retro-coral);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+        .trash-empty-btn:hover {
+            background: var(--retro-coral-dark);
+        }
+        .trash-list {
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 8px;
+        }
+        .trash-empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--retro-warm-gray);
+            font-size: 14px;
+        }
+        .trash-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            margin-bottom: 8px;
+            background: white;
+            border: 1px solid var(--retro-border);
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+        .trash-item:hover {
+            border-color: var(--retro-teal);
+            box-shadow: var(--shadow-sm);
+        }
+        .trash-item-info {
+            flex: 1;
+            overflow: hidden;
+        }
+        .trash-item-name {
+            font-weight: 500;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .trash-item-meta {
+            font-size: 11px;
+            color: var(--retro-warm-gray);
+        }
+        .trash-item-actions {
+            display: flex;
+            gap: 8px;
+            margin-left: 12px;
+        }
+        .trash-restore-btn {
+            padding: 6px 12px;
+            background: var(--retro-teal);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .trash-restore-btn:hover {
+            background: var(--retro-teal-dark);
+        }
+        .trash-delete-btn {
+            padding: 6px 10px;
+            background: var(--retro-warm-gray);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .trash-delete-btn:hover {
+            background: var(--retro-coral);
+        }
+        .trash-count {
+            background: var(--retro-coral);
+            color: white;
+            font-size: 10px;
+            padding: 1px 5px;
+            border-radius: 10px;
+            margin-left: 2px;
+        }
+
+        /* ========== 자동 저장 스타일 ========== */
+        .auto-save-status {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            background: var(--retro-mint);
+            border: 1px solid var(--retro-border);
+            border-radius: 4px;
+            font-size: 11px;
+            color: var(--retro-teal);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .auto-save-status:hover {
+            border-color: var(--retro-teal);
+        }
+        .auto-save-status.saving {
+            background: var(--retro-mustard);
+            border-color: var(--retro-mustard-dark);
+            color: white;
+        }
+        .auto-save-status.saving .auto-save-icon {
+            animation: pulse 1s infinite;
+        }
+        .auto-save-status.error {
+            background: var(--retro-coral);
+            border-color: var(--retro-coral-dark);
+            color: white;
+        }
+        .auto-save-status.disabled {
+            background: var(--retro-warm-gray);
+            border-color: var(--retro-warm-gray);
+            color: white;
+            opacity: 0.7;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* 자동 저장 모달 */
+        .autosave-modal .modal-content.autosave-content {
+            max-width: 350px;
+        }
+        .autosave-options {
+            padding: 20px;
+        }
+        .autosave-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+            cursor: pointer;
+        }
+        .autosave-toggle input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--retro-teal);
+        }
+        .autosave-interval {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+            padding: 12px;
+            background: var(--retro-mint);
+            border-radius: 8px;
+        }
+        .autosave-interval select {
+            padding: 6px 10px;
+            border: 1px solid var(--retro-border);
+            border-radius: 4px;
+            background: white;
+            font-size: 13px;
+        }
+        .autosave-last {
+            font-size: 12px;
+            color: var(--retro-warm-gray);
+            text-align: center;
+            padding-top: 10px;
+            border-top: 1px solid var(--retro-border);
+        }
+
+        /* ========== 되돌리기 토스트 스타일 ========== */
+        .toast.undo-toast {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: var(--retro-charcoal);
+        }
+        .undo-btn {
+            padding: 6px 14px;
+            background: var(--retro-teal);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .undo-btn:hover {
+            background: var(--retro-teal-dark);
+        }
+
+        /* 모달 오버레이 show */
+        .trash-modal, .autosave-modal {
+            display: none;
+        }
+        .trash-modal.show, .autosave-modal.show {
+            display: flex;
+        }
