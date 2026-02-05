@@ -12043,8 +12043,9 @@ function renderRawFilesList() {
                     </div>
                     <div class="raw-file-card-date">📅 ${lastUpdated}</div>
                     ${!rawFileSelectMode ? `<div class="raw-file-card-actions">
+                        <button onclick="event.stopPropagation(); showStatisticsModal('${safeFileName}')" title="통계">📊</button>
                         <button onclick="event.stopPropagation(); showDuplicateDetectionModal('${safeFileName}')" title="중복 탐지">🔍</button>
-                        <button class="copy-to-sheet" onclick="event.stopPropagation(); copyRawFileToSheets('${safeFileName}')" title="시트로 복사">📑 복사</button>
+                        <button class="copy-to-sheet" onclick="event.stopPropagation(); copyRawFileToSheets('${safeFileName}')" title="시트로 복사">📑</button>
                         <button onclick="event.stopPropagation(); downloadRawFile('${safeFileName}')">다운로드</button>
                         <button class="danger" onclick="event.stopPropagation(); deleteRawFile('${safeFileName}')">삭제</button>
                     </div>` : ''}
@@ -12073,6 +12074,7 @@ function renderRawFilesList() {
                         </div>
                     </div>
                     ${!rawFileSelectMode ? `<div class="raw-file-actions">
+                        <button class="raw-file-btn" onclick="event.stopPropagation(); showStatisticsModal('${safeFileName}')" title="통계">📊</button>
                         <button class="raw-file-btn" onclick="event.stopPropagation(); showDuplicateDetectionModal('${safeFileName}')" title="중복 탐지">🔍</button>
                         <button class="raw-file-btn copy-to-sheet" onclick="event.stopPropagation(); copyRawFileToSheets('${safeFileName}')" title="시트로 복사">📑</button>
                         <button class="raw-file-btn" onclick="event.stopPropagation(); showRawFileHistory('${safeFileName}')" title="업로드 이력">📋</button>
@@ -13184,6 +13186,300 @@ function removeDuplicates() {
 
     showToast(`${removeCount}개 중복 행이 제거되었습니다.`, 'success');
     renderRawFilesList();
+}
+
+// ========== 기본 통계 시스템 ==========
+
+// 파일 통계 계산
+function calculateFileStatistics(fileName) {
+    if (!rawFiles[fileName]) return null;
+
+    const file = rawFiles[fileName];
+    const sheets = file.sheets || {};
+    const sheetNames = Object.keys(sheets);
+
+    let totalRows = 0;
+    let totalCells = 0;
+    let emptyCells = 0;
+    let allColumns = new Set();
+    let sheetStats = [];
+
+    sheetNames.forEach(sheetName => {
+        const sheet = sheets[sheetName];
+        const headers = sheet.headers || [];
+        const data = sheet.data || [];
+        const rowCount = data.length;
+        const colCount = headers.length;
+
+        headers.forEach(h => allColumns.add(h));
+
+        let sheetEmptyCells = 0;
+        data.forEach(row => {
+            if (!row) return;
+            row.forEach(cell => {
+                if (cell === null || cell === undefined || cell === '') {
+                    sheetEmptyCells++;
+                }
+            });
+        });
+
+        const sheetTotalCells = rowCount * colCount;
+        const fillRate = sheetTotalCells > 0 ? ((sheetTotalCells - sheetEmptyCells) / sheetTotalCells * 100).toFixed(1) : 0;
+
+        sheetStats.push({
+            name: sheetName,
+            rows: rowCount,
+            columns: colCount,
+            emptyCells: sheetEmptyCells,
+            totalCells: sheetTotalCells,
+            fillRate: fillRate
+        });
+
+        totalRows += rowCount;
+        totalCells += sheetTotalCells;
+        emptyCells += sheetEmptyCells;
+    });
+
+    const uploadHistory = [];
+    sheetNames.forEach(sheetName => {
+        const sheet = sheets[sheetName];
+        if (sheet.uploadHistory) {
+            sheet.uploadHistory.forEach(h => uploadHistory.push({ ...h, sheetName }));
+        }
+    });
+    uploadHistory.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    return {
+        fileName,
+        displayName: file.displayName || fileName,
+        totalSheets: sheetNames.length,
+        totalRows,
+        totalColumns: allColumns.size,
+        totalCells,
+        emptyCells,
+        fillRate: totalCells > 0 ? ((totalCells - emptyCells) / totalCells * 100).toFixed(1) : 0,
+        lastUpdated: file.lastUpdated,
+        sheetStats,
+        uploadCount: uploadHistory.length,
+        uploadHistory: uploadHistory.slice(0, 5)
+    };
+}
+
+// 열별 통계 계산
+function calculateColumnStatistics(fileName, sheetName) {
+    if (!rawFiles[fileName] || !rawFiles[fileName].sheets[sheetName]) return [];
+
+    const sheet = rawFiles[fileName].sheets[sheetName];
+    const headers = sheet.headers || [];
+    const data = sheet.data || [];
+
+    return headers.map((header, colIdx) => {
+        const values = data.map(row => row ? row[colIdx] : null);
+        const nonEmpty = values.filter(v => v !== null && v !== undefined && v !== '');
+        const uniqueValues = new Set(nonEmpty.map(v => String(v)));
+
+        // 데이터 타입 추론
+        let numericCount = 0;
+        let dateCount = 0;
+        nonEmpty.forEach(v => {
+            if (!isNaN(Number(v))) numericCount++;
+            if (v && /^\d{4}[-./]\d{1,2}[-./]\d{1,2}/.test(String(v))) dateCount++;
+        });
+
+        let dataType = '텍스트';
+        if (numericCount > nonEmpty.length * 0.8) dataType = '숫자';
+        else if (dateCount > nonEmpty.length * 0.5) dataType = '날짜';
+
+        // 숫자인 경우 min/max/avg
+        let min = null, max = null, avg = null;
+        if (dataType === '숫자' && nonEmpty.length > 0) {
+            const nums = nonEmpty.map(v => Number(v)).filter(n => !isNaN(n));
+            if (nums.length > 0) {
+                min = Math.min(...nums);
+                max = Math.max(...nums);
+                avg = (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(2);
+            }
+        }
+
+        return {
+            index: colIdx,
+            header: header || `열 ${colIdx + 1}`,
+            totalCount: values.length,
+            nonEmptyCount: nonEmpty.length,
+            emptyCount: values.length - nonEmpty.length,
+            fillRate: values.length > 0 ? ((nonEmpty.length / values.length) * 100).toFixed(1) : 0,
+            uniqueCount: uniqueValues.size,
+            dataType,
+            min, max, avg
+        };
+    });
+}
+
+// 통계 모달 표시
+function showStatisticsModal(fileName) {
+    if (!rawFiles[fileName]) {
+        showToast('파일을 찾을 수 없습니다.', 'error');
+        return;
+    }
+
+    const stats = calculateFileStatistics(fileName);
+    if (!stats) return;
+
+    const modal = document.createElement('div');
+    modal.className = 'raw-file-history-modal';
+    modal.id = 'statisticsModal';
+    modal.innerHTML = `
+        <div class="history-modal-content" style="max-width: 600px;">
+            <div class="history-modal-header">
+                <h3>📊 통계 - ${escHtml(stats.displayName)}</h3>
+                <button class="history-modal-close" onclick="this.closest('.raw-file-history-modal').remove()">&times;</button>
+            </div>
+            <div class="history-modal-body" style="padding: 20px;">
+                <!-- 탭 -->
+                <div class="stats-tabs">
+                    <button class="stats-tab active" onclick="switchStatsTab('overview', this)">개요</button>
+                    <button class="stats-tab" onclick="switchStatsTab('sheets', this)">시트별</button>
+                    <button class="stats-tab" onclick="switchStatsTab('columns', this)">열별</button>
+                </div>
+
+                <!-- 개요 탭 -->
+                <div class="stats-content" id="statsOverview">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon">📑</div>
+                            <div class="stat-value">${stats.totalSheets}</div>
+                            <div class="stat-label">시트</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">📝</div>
+                            <div class="stat-value">${stats.totalRows.toLocaleString()}</div>
+                            <div class="stat-label">총 행</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">📊</div>
+                            <div class="stat-value">${stats.totalColumns}</div>
+                            <div class="stat-label">총 열</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">✅</div>
+                            <div class="stat-value">${stats.fillRate}%</div>
+                            <div class="stat-label">데이터 충족률</div>
+                        </div>
+                    </div>
+                    <div class="stats-detail">
+                        <div class="detail-row">
+                            <span>총 셀 수</span>
+                            <span>${stats.totalCells.toLocaleString()}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span>빈 셀 수</span>
+                            <span>${stats.emptyCells.toLocaleString()}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span>업로드 횟수</span>
+                            <span>${stats.uploadCount}회</span>
+                        </div>
+                        <div class="detail-row">
+                            <span>마지막 업데이트</span>
+                            <span>${stats.lastUpdated ? new Date(stats.lastUpdated).toLocaleString('ko-KR') : '-'}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 시트별 탭 -->
+                <div class="stats-content" id="statsSheets" style="display: none;">
+                    <div class="sheet-stats-list">
+                        ${stats.sheetStats.map(s => `
+                            <div class="sheet-stat-item">
+                                <div class="sheet-stat-name">📄 ${escHtml(s.name)}</div>
+                                <div class="sheet-stat-meta">
+                                    <span>${s.rows.toLocaleString()}행</span>
+                                    <span>${s.columns}열</span>
+                                    <span class="fill-badge" style="background: ${getFillRateColor(s.fillRate)}">${s.fillRate}%</span>
+                                </div>
+                                <div class="sheet-stat-bar">
+                                    <div class="fill-bar" style="width: ${s.fillRate}%; background: ${getFillRateColor(s.fillRate)}"></div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <!-- 열별 탭 -->
+                <div class="stats-content" id="statsColumns" style="display: none;">
+                    <div class="column-stats-controls">
+                        <select id="columnStatsSheetSelect" onchange="updateColumnStats('${escHtml(fileName)}')">
+                            ${Object.keys(rawFiles[fileName].sheets).map(sn => `<option value="${escHtml(sn)}">${escHtml(sn)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="column-stats-list" id="columnStatsList">
+                        <!-- 열 통계가 여기 표시됨 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
+
+    document.body.appendChild(modal);
+
+    // 초기 열 통계 로드
+    updateColumnStats(fileName);
+}
+
+// 탭 전환
+function switchStatsTab(tabName, btn) {
+    document.querySelectorAll('.stats-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.stats-content').forEach(c => c.style.display = 'none');
+
+    btn.classList.add('active');
+    const tabId = tabName === 'overview' ? 'statsOverview' : tabName === 'sheets' ? 'statsSheets' : 'statsColumns';
+    document.getElementById(tabId).style.display = 'block';
+}
+
+// 열 통계 업데이트
+function updateColumnStats(fileName) {
+    const sheetSelect = document.getElementById('columnStatsSheetSelect');
+    const sheetName = sheetSelect?.value;
+    const listEl = document.getElementById('columnStatsList');
+
+    if (!sheetName || !listEl) return;
+
+    const colStats = calculateColumnStatistics(fileName, sheetName);
+
+    listEl.innerHTML = colStats.map(col => `
+        <div class="col-stat-item">
+            <div class="col-stat-header">
+                <span class="col-stat-name">${escHtml(col.header)}</span>
+                <span class="col-stat-type">${col.dataType}</span>
+            </div>
+            <div class="col-stat-details">
+                <span>값: ${col.nonEmptyCount}/${col.totalCount}</span>
+                <span>고유: ${col.uniqueCount}</span>
+                <span class="fill-badge" style="background: ${getFillRateColor(col.fillRate)}">${col.fillRate}%</span>
+            </div>
+            ${col.dataType === '숫자' && col.min !== null ? `
+                <div class="col-stat-numeric">
+                    <span>최소: ${col.min}</span>
+                    <span>최대: ${col.max}</span>
+                    <span>평균: ${col.avg}</span>
+                </div>
+            ` : ''}
+        </div>
+    `).join('');
+}
+
+// 충족률에 따른 색상
+function getFillRateColor(rate) {
+    rate = parseFloat(rate);
+    if (rate >= 90) return '#4CAF50';
+    if (rate >= 70) return '#8BC34A';
+    if (rate >= 50) return '#FFC107';
+    if (rate >= 30) return '#FF9800';
+    return '#F44336';
 }
 
 // 선택된 파일들을 폴더로 이동하는 모달

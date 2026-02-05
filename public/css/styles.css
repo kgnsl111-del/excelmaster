@@ -5137,6 +5137,181 @@
             background: var(--retro-coral-dark);
         }
 
+        /* ===== 통계 모달 스타일 ===== */
+        .stats-tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--retro-border);
+            padding-bottom: 10px;
+        }
+        .stats-tab {
+            padding: 8px 16px;
+            border: none;
+            background: var(--retro-cream);
+            border-radius: 6px 6px 0 0;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .stats-tab:hover {
+            background: var(--retro-mint);
+        }
+        .stats-tab.active {
+            background: var(--retro-teal);
+            color: white;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: white;
+            border: 2px solid var(--retro-border);
+            border-radius: 10px;
+            padding: 15px 10px;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        .stat-card:hover {
+            border-color: var(--retro-teal);
+            transform: translateY(-2px);
+        }
+        .stat-icon {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        .stat-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: var(--retro-teal-dark);
+        }
+        .stat-label {
+            font-size: 11px;
+            color: var(--retro-warm-gray);
+            margin-top: 3px;
+        }
+        .stats-detail {
+            background: var(--retro-cream);
+            border-radius: 8px;
+            padding: 15px;
+        }
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--retro-border);
+            font-size: 13px;
+        }
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+        /* 시트별 통계 */
+        .sheet-stats-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 350px;
+            overflow-y: auto;
+        }
+        .sheet-stat-item {
+            background: white;
+            border: 1px solid var(--retro-border);
+            border-radius: 8px;
+            padding: 12px;
+        }
+        .sheet-stat-name {
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 6px;
+        }
+        .sheet-stat-meta {
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+            color: var(--retro-warm-gray);
+            margin-bottom: 8px;
+        }
+        .fill-badge {
+            padding: 2px 8px;
+            border-radius: 10px;
+            color: white;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .sheet-stat-bar {
+            height: 6px;
+            background: var(--retro-cream);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .fill-bar {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s;
+        }
+
+        /* 열별 통계 */
+        .column-stats-controls {
+            margin-bottom: 15px;
+        }
+        .column-stats-controls select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--retro-border);
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        .column-stats-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .col-stat-item {
+            background: white;
+            border: 1px solid var(--retro-border);
+            border-radius: 6px;
+            padding: 10px;
+        }
+        .col-stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        .col-stat-name {
+            font-weight: 600;
+            font-size: 13px;
+        }
+        .col-stat-type {
+            padding: 2px 8px;
+            background: var(--retro-cream);
+            border-radius: 10px;
+            font-size: 10px;
+            color: var(--retro-warm-gray);
+        }
+        .col-stat-details {
+            display: flex;
+            gap: 10px;
+            font-size: 11px;
+            color: var(--retro-warm-gray);
+        }
+        .col-stat-numeric {
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: 1px dashed var(--retro-border);
+            display: flex;
+            gap: 15px;
+            font-size: 11px;
+            color: var(--retro-teal-dark);
+        }
+
         /* 업로드 이력 모달 */
         .raw-file-history-modal {
             position: fixed;
