@@ -5088,17 +5088,29 @@ async function parseExcelOptimized(data) {
         if (matchedSheet && !isFirstUpload) {
             // 스마트 병합: 기본명 + 헤더 일치 → 자동 병합 (중복 제외)
             const existingSheet = WB[matchedSheet];
-            const existingOriginalCount = existingSheet.data.length; // 이름 변경 비교용 (추가 전)
             const existingDataSet = new Set(existingSheet.data.map(row => JSON.stringify(row)));
             const uniqueNewRows = newData.filter(row => !existingDataSet.has(JSON.stringify(row)));
 
             const duplicateCount = newData.length - uniqueNewRows.length;
 
+            // 시트명에서 날짜 추출 함수
+            const extractDate = (sheetName) => {
+                const match = sheetName.match(/(\d{4})\.(\d{2})\.(\d{2})/);
+                if (match) return new Date(match[1], match[2] - 1, match[3]);
+                const match2 = sheetName.match(/(\d{4})-(\d{2})-(\d{2})/);
+                if (match2) return new Date(match2[1], match2[2] - 1, match2[3]);
+                return null;
+            };
+
+            const existingDate = extractDate(matchedSheet);
+            const newDate = extractDate(name);
+            const shouldRename = newDate && existingDate && newDate > existingDate && name !== matchedSheet;
+
             if (uniqueNewRows.length > 0) {
                 existingSheet.data = [...existingSheet.data, ...uniqueNewRows];
 
-                // 새 파일 데이터가 더 많으면 시트명 변경
-                if (newData.length > existingOriginalCount && name !== matchedSheet) {
+                // 새 시트 날짜가 더 최신이면 시트명 변경
+                if (shouldRename) {
                     WB[name] = existingSheet;
                     delete WB[matchedSheet];
                     COL_ORDER[name] = COL_ORDER[matchedSheet] || newHeaders.map((_, i) => i);
@@ -5110,7 +5122,18 @@ async function parseExcelOptimized(data) {
                     toast(`'${matchedSheet}' 병합: +${uniqueNewRows.length}행 (중복 ${duplicateCount}건 제외)`);
                 }
             } else {
-                toast(`'${matchedSheet}' 중복 데이터 (새 행 없음, ${duplicateCount}건 제외)`);
+                // 새 행이 없어도 날짜가 더 최신이면 이름 변경
+                if (shouldRename) {
+                    WB[name] = existingSheet;
+                    delete WB[matchedSheet];
+                    COL_ORDER[name] = COL_ORDER[matchedSheet] || newHeaders.map((_, i) => i);
+                    delete COL_ORDER[matchedSheet];
+                    HIDDEN_COLS[name] = HIDDEN_COLS[matchedSheet] || new Set();
+                    delete HIDDEN_COLS[matchedSheet];
+                    toast(`'${matchedSheet}' → '${name}' 이름 변경 (중복 ${duplicateCount}건)`);
+                } else {
+                    toast(`'${matchedSheet}' 중복 데이터 (새 행 없음, ${duplicateCount}건 제외)`);
+                }
             }
             duplicateSheets++;
         } else if (WB[name] && WB[name].data && WB[name].data.length > 0) {
@@ -14294,9 +14317,6 @@ function accumulateRawFileData(fileName, newSheets) {
             sheetResult.duplicateRows = (newSheet.data || []).length - uniqueNewRows.length;
             sheetResult.addedRows = uniqueNewRows.length;
 
-            // 기존 데이터 수 저장 (이름 변경 비교용)
-            const existingOriginalCount = existingSheet.data.length;
-
             if (uniqueNewRows.length > 0) {
                 existingSheet.data = [...existingSheet.data, ...uniqueNewRows];
                 existingSheet.uploadHistory = existingSheet.uploadHistory || [];
@@ -14308,8 +14328,19 @@ function accumulateRawFileData(fileName, newSheets) {
                 });
             }
 
-            // 새 파일 데이터가 더 많으면 시트명을 새 이름으로 변경
-            if ((newSheet.data || []).length > existingOriginalCount && sheetName !== matchedSheetName) {
+            // 시트명에서 날짜 추출 함수
+            const extractDate = (name) => {
+                const match = name.match(/(\d{4})\.(\d{2})\.(\d{2})/);
+                if (match) return new Date(match[1], match[2] - 1, match[3]);
+                const match2 = name.match(/(\d{4})-(\d{2})-(\d{2})/);
+                if (match2) return new Date(match2[1], match2[2] - 1, match2[3]);
+                return null;
+            };
+
+            // 새 시트 날짜가 더 최신이면 시트명 변경
+            const existingDate = extractDate(matchedSheetName);
+            const newDate = extractDate(sheetName);
+            if (newDate && existingDate && newDate > existingDate && sheetName !== matchedSheetName) {
                 rawFiles[targetFileName].sheets[sheetName] = existingSheet;
                 delete rawFiles[targetFileName].sheets[matchedSheetName];
                 sheetResult.renamedFrom = matchedSheetName;
