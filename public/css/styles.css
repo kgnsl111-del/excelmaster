@@ -4751,6 +4751,221 @@
             background: var(--retro-teal-dark);
         }
 
+        /* 현재 폴더 배지 */
+        .current-badge {
+            background: var(--retro-teal);
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .copy-sheet-item.current-folder {
+            background: var(--retro-mint);
+            border-color: var(--retro-teal);
+        }
+
+        /* 폴더 생성 버튼 */
+        .raw-folder-create-btn {
+            padding: 6px 10px;
+            background: var(--retro-cream);
+            border: 1px solid var(--retro-border);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        .raw-folder-create-btn:hover {
+            background: var(--retro-mint);
+            border-color: var(--retro-teal);
+        }
+
+        /* 폴더 네비게이션 */
+        .raw-folder-nav {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 15px;
+            background: var(--retro-cream);
+            border-bottom: 1px solid var(--retro-border);
+            margin-bottom: 10px;
+        }
+        .raw-folder-back-btn {
+            padding: 6px 12px;
+            background: white;
+            border: 1px solid var(--retro-border);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        .raw-folder-back-btn:hover {
+            background: var(--retro-mint);
+            border-color: var(--retro-teal);
+        }
+        .raw-folder-current {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        /* 폴더 섹션 */
+        .raw-folder-section {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 5px 0;
+        }
+        .raw-folder-divider {
+            width: 100%;
+            height: 1px;
+            background: var(--retro-border);
+            margin: 10px 0;
+        }
+
+        /* 폴더 아이템 (리스트 뷰) */
+        .raw-folder-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 15px;
+            background: white;
+            border: 2px solid var(--retro-border);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .raw-folder-item:hover {
+            border-color: var(--retro-teal);
+            background: var(--retro-mint);
+        }
+        .raw-folder-icon {
+            font-size: 28px;
+        }
+        .raw-folder-info {
+            flex: 1;
+        }
+        .raw-folder-name {
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--retro-charcoal);
+        }
+        .raw-folder-meta {
+            font-size: 11px;
+            color: var(--retro-warm-gray);
+        }
+        .raw-folder-actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        /* 폴더 카드 (카드 뷰) */
+        .raw-folder-card {
+            background: white;
+            border: 2px solid var(--retro-border);
+            border-radius: 8px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            min-width: 150px;
+        }
+        .raw-folder-card:hover {
+            border-color: var(--retro-teal);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .raw-folder-card-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 5px;
+        }
+        .raw-folder-card-icon {
+            font-size: 24px;
+        }
+        .raw-folder-card-name {
+            font-weight: 600;
+            font-size: 13px;
+        }
+        .raw-folder-card-meta {
+            font-size: 11px;
+            color: var(--retro-warm-gray);
+        }
+
+        /* 폴더 아이콘 (아이콘 뷰) */
+        .raw-folder-icon-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px 5px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            min-width: 80px;
+        }
+        .raw-folder-icon-item:hover {
+            background: var(--retro-mint);
+        }
+        .raw-folder-icon-img {
+            font-size: 40px;
+            margin-bottom: 6px;
+        }
+        .raw-folder-icon-name {
+            font-size: 11px;
+            font-weight: 500;
+            text-align: center;
+            max-width: 80px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .raw-folder-icon-count {
+            font-size: 9px;
+            color: var(--retro-warm-gray);
+        }
+
+        /* 컨텍스트 메뉴 아이템 */
+        .ctx-menu-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.15s;
+        }
+        .ctx-menu-item:hover {
+            background: var(--retro-mint);
+        }
+        .ctx-menu-item.danger {
+            color: var(--retro-coral);
+        }
+        .ctx-menu-divider {
+            height: 1px;
+            background: var(--retro-border);
+            margin: 5px 0;
+        }
+
+        /* 색상 선택 그리드 */
+        .color-picker-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+        .color-picker-item {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            transition: transform 0.2s;
+            border: 3px solid transparent;
+        }
+        .color-picker-item:hover {
+            transform: scale(1.1);
+        }
+        .color-picker-item.selected {
+            border-color: var(--retro-charcoal);
+        }
+
         /* 업로드 이력 모달 */
         .raw-file-history-modal {
             position: fixed;

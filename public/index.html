@@ -498,6 +498,7 @@
                         <button class="raw-file-view-btn" id="rawFileIconViewBtn" onclick="setRawFileViewMode('icon')" title="아이콘 뷰">▣</button>
                     </div>
                     <button class="raw-file-select-btn" id="rawFileSelectModeBtn" onclick="toggleRawFileSelectMode()">선택</button>
+                    <button class="raw-folder-create-btn" onclick="createRawFileFolder()" title="새 폴더 만들기">📁+</button>
                     <span class="raw-file-count">0개 파일</span>
                 </div>
                 <!-- 선택 모드 액션 바 -->
@@ -505,6 +506,7 @@
                     <span class="raw-file-selected-count">0개 선택</span>
                     <button class="raw-file-action-btn" onclick="selectAllRawFiles()">전체 선택</button>
                     <button class="raw-file-action-btn" onclick="deselectAllRawFiles()">선택 해제</button>
+                    <button class="raw-file-action-btn" onclick="showMoveSelectedToFolderModal()">📁 이동</button>
                     <button class="raw-file-action-btn primary" onclick="downloadSelectedRawFiles()">다운로드</button>
                     <button class="raw-file-action-btn danger" onclick="deleteSelectedRawFiles()">삭제</button>
                 </div>
@@ -1177,6 +1179,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 원본 파일 로드 및 드래그 앤 드롭 설정
     loadRawFilesFromLocalStorage();
+    loadRawFileFolders();
     setupRawFilesDragDrop();
 });
 
@@ -9159,6 +9162,11 @@ var selectedRawFiles = new Set();   // 선택된 원본 파일들
 var rawFileSelectMode = false;      // 선택 모드 활성화 여부
 var rawFileToSheetMapping = {};     // 원본 파일 → 시트 연결 매핑
 
+// ===== 원본 파일 폴더 시스템 =====
+var rawFileFolders = {};            // { folderId: { name, createdAt, color } }
+var rawFileToFolder = {};           // { fileName: folderId }
+var currentRawFolderId = null;      // 현재 보고 있는 폴더 (null = 루트)
+
 // ===== 파일 보관함 성능 최적화 =====
 let fileRenderTimeout = null; // 렌더링 디바운스
 let fileRenderCache = { hash: '', html: '' }; // 렌더링 캐시
@@ -11861,13 +11869,25 @@ function renderRawFilesList() {
     if (!container) return;
 
     const allFileNames = Object.keys(rawFiles);
-    const fileNames = filterAndSortRawFiles();
+    let fileNames = filterAndSortRawFiles();
+
+    // 현재 폴더에 따라 파일 필터링 (검색 중이 아닐 때만)
+    if (!rawFileSearchKeyword) {
+        if (currentRawFolderId) {
+            fileNames = fileNames.filter(name => rawFileToFolder[name] === currentRawFolderId);
+        } else {
+            fileNames = fileNames.filter(name => !rawFileToFolder[name]);
+        }
+    }
 
     // 파일 개수 표시 업데이트
     const countEl = document.querySelector('.raw-file-count');
     if (countEl) {
         if (rawFileSearchKeyword && fileNames.length !== allFileNames.length) {
             countEl.textContent = `${fileNames.length}/${allFileNames.length}개 파일`;
+        } else if (currentRawFolderId) {
+            const folderName = rawFileFolders[currentRawFolderId]?.name || '폴더';
+            countEl.textContent = `${folderName}: ${fileNames.length}개`;
         } else {
             countEl.textContent = `${allFileNames.length}개 파일`;
         }
@@ -11877,7 +11897,23 @@ function renderRawFilesList() {
     container.classList.remove('list-view', 'card-view', 'icon-view');
     container.classList.add(rawFileViewMode + '-view');
 
-    if (allFileNames.length === 0) {
+    // 현재 폴더 정보 및 뒤로가기 버튼
+    let folderNavHtml = '';
+    if (currentRawFolderId && !rawFileSearchKeyword) {
+        const currentFolder = rawFileFolders[currentRawFolderId];
+        folderNavHtml = `
+            <div class="raw-folder-nav">
+                <button class="raw-folder-back-btn" onclick="goToRawFileRoot()">
+                    ← 루트로
+                </button>
+                <span class="raw-folder-current" style="color: ${currentFolder?.color || '#666'}">
+                    📁 ${escHtml(currentFolder?.name || '폴더')}
+                </span>
+            </div>
+        `;
+    }
+
+    if (allFileNames.length === 0 && Object.keys(rawFileFolders).length === 0) {
         container.innerHTML = `
             <div class="raw-files-empty">
                 <div style="font-size: 48px; margin-bottom: 15px;">📊</div>
@@ -11888,7 +11924,7 @@ function renderRawFilesList() {
         return;
     }
 
-    if (fileNames.length === 0) {
+    if (fileNames.length === 0 && rawFileSearchKeyword) {
         container.innerHTML = `
             <div class="raw-files-empty">
                 <div style="font-size: 48px; margin-bottom: 15px;">🔍</div>
@@ -11902,7 +11938,73 @@ function renderRawFilesList() {
     // 선택 모드 클래스 적용
     container.classList.toggle('select-mode', rawFileSelectMode);
 
-    let html = '';
+    let html = folderNavHtml;
+
+    // 폴더 렌더링 (루트에서만, 검색 중 아닐 때만)
+    if (!currentRawFolderId && !rawFileSearchKeyword) {
+        const folders = Object.entries(rawFileFolders);
+        if (folders.length > 0) {
+            html += '<div class="raw-folder-section">';
+            folders.forEach(([folderId, folder]) => {
+                const fileCount = getRawFileFolderCount(folderId);
+                if (rawFileViewMode === 'icon') {
+                    html += `
+                        <div class="raw-folder-icon-item" ondblclick="openRawFileFolder('${folderId}')" oncontextmenu="showRawFolderContextMenu(event, '${folderId}')">
+                            <div class="raw-folder-icon-img" style="color: ${folder.color}">📁</div>
+                            <div class="raw-folder-icon-name" title="${escHtml(folder.name)}">${escHtml(folder.name)}</div>
+                            <div class="raw-folder-icon-count">${fileCount}개 파일</div>
+                        </div>
+                    `;
+                } else if (rawFileViewMode === 'card') {
+                    html += `
+                        <div class="raw-folder-card" ondblclick="openRawFileFolder('${folderId}')" oncontextmenu="showRawFolderContextMenu(event, '${folderId}')">
+                            <div class="raw-folder-card-header">
+                                <span class="raw-folder-card-icon" style="color: ${folder.color}">📁</span>
+                                <span class="raw-folder-card-name">${escHtml(folder.name)}</span>
+                            </div>
+                            <div class="raw-folder-card-meta">${fileCount}개 파일</div>
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div class="raw-folder-item" ondblclick="openRawFileFolder('${folderId}')" oncontextmenu="showRawFolderContextMenu(event, '${folderId}')">
+                            <div class="raw-folder-icon" style="color: ${folder.color}">📁</div>
+                            <div class="raw-folder-info">
+                                <div class="raw-folder-name">${escHtml(folder.name)}</div>
+                                <div class="raw-folder-meta">${fileCount}개 파일</div>
+                            </div>
+                            <div class="raw-folder-actions">
+                                <button class="raw-file-btn" onclick="event.stopPropagation(); startRenameRawFolder('${folderId}')" title="이름 변경">✏️</button>
+                                <button class="raw-file-btn danger" onclick="event.stopPropagation(); deleteRawFileFolder('${folderId}')" title="삭제">🗑️</button>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+            html += '</div>';
+
+            // 폴더와 파일 구분선
+            if (fileNames.length > 0) {
+                html += '<div class="raw-folder-divider"></div>';
+            }
+        }
+    }
+
+    // 빈 폴더 또는 루트가 비어있을 때
+    if (fileNames.length === 0 && !rawFileSearchKeyword) {
+        if (currentRawFolderId) {
+            html += `
+                <div class="raw-files-empty">
+                    <div style="font-size: 48px; margin-bottom: 15px;">📂</div>
+                    <div>폴더가 비어있습니다</div>
+                    <div style="font-size: 12px; margin-top: 8px;">파일을 이 폴더로 이동해보세요</div>
+                </div>
+            `;
+        }
+        container.innerHTML = html;
+        return;
+    }
+
     fileNames.forEach(fileName => {
         const fileData = rawFiles[fileName];
         const sheetNames = Object.keys(fileData.sheets);
@@ -12085,6 +12187,119 @@ async function downloadSelectedRawFiles() {
     }
 
     toast(`${selectedRawFiles.size}개 파일 다운로드 완료`);
+}
+
+// ===== 폴더 컨텍스트 메뉴 및 이름 변경 =====
+
+// 폴더 컨텍스트 메뉴 표시
+function showRawFolderContextMenu(event, folderId) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    // 기존 메뉴 제거
+    const existingMenu = document.querySelector('.raw-folder-context-menu');
+    if (existingMenu) existingMenu.remove();
+
+    const folder = rawFileFolders[folderId];
+    if (!folder) return;
+
+    const menu = document.createElement('div');
+    menu.className = 'raw-folder-context-menu';
+    menu.style.cssText = `
+        position: fixed;
+        left: ${event.clientX}px;
+        top: ${event.clientY}px;
+        background: white;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10000;
+        min-width: 150px;
+        padding: 5px 0;
+    `;
+
+    menu.innerHTML = `
+        <div class="ctx-menu-item" onclick="openRawFileFolder('${folderId}'); this.parentElement.remove();">
+            📂 열기
+        </div>
+        <div class="ctx-menu-item" onclick="startRenameRawFolder('${folderId}'); this.parentElement.remove();">
+            ✏️ 이름 변경
+        </div>
+        <div class="ctx-menu-divider"></div>
+        <div class="ctx-menu-item" onclick="showRawFolderColorPicker('${folderId}'); this.parentElement.remove();">
+            🎨 색상 변경
+        </div>
+        <div class="ctx-menu-divider"></div>
+        <div class="ctx-menu-item danger" onclick="deleteRawFileFolder('${folderId}'); this.parentElement.remove();">
+            🗑️ 삭제
+        </div>
+    `;
+
+    document.body.appendChild(menu);
+
+    // 화면 밖으로 나가지 않도록 조정
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth) {
+        menu.style.left = (window.innerWidth - rect.width - 10) + 'px';
+    }
+    if (rect.bottom > window.innerHeight) {
+        menu.style.top = (window.innerHeight - rect.height - 10) + 'px';
+    }
+
+    // 외부 클릭 시 닫기
+    setTimeout(() => {
+        document.addEventListener('click', function closeMenu(e) {
+            if (!menu.contains(e.target)) {
+                menu.remove();
+                document.removeEventListener('click', closeMenu);
+            }
+        });
+    }, 0);
+}
+
+// 폴더 이름 변경 시작
+function startRenameRawFolder(folderId) {
+    const folder = rawFileFolders[folderId];
+    if (!folder) return;
+
+    const newName = prompt('새 폴더 이름을 입력하세요:', folder.name);
+    if (newName && newName.trim() && newName.trim() !== folder.name) {
+        renameRawFileFolder(folderId, newName.trim());
+    }
+}
+
+// 폴더 색상 선택 모달
+function showRawFolderColorPicker(folderId) {
+    const folder = rawFileFolders[folderId];
+    if (!folder) return;
+
+    const modal = document.createElement('div');
+    modal.className = 'raw-file-history-modal';
+    modal.innerHTML = `
+        <div class="history-modal-content" style="max-width: 300px;">
+            <div class="history-modal-header">
+                <h3>🎨 폴더 색상</h3>
+                <button class="history-modal-close" onclick="this.closest('.raw-file-history-modal').remove()">&times;</button>
+            </div>
+            <div class="history-modal-body" style="padding: 20px;">
+                <div class="color-picker-grid">
+                    ${RAW_FOLDER_COLORS.map(color => `
+                        <div class="color-picker-item ${folder.color === color ? 'selected' : ''}"
+                             style="background: ${color}"
+                             onclick="changeRawFolderColor('${folderId}', '${color}'); this.closest('.raw-file-history-modal').remove();">
+                            ${folder.color === color ? '✓' : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
+
+    document.body.appendChild(modal);
 }
 
 // ===== 호버 미리보기 =====
@@ -12395,6 +12610,262 @@ function getRawFileLinkedSheets(fileName) {
 // 연결된 시트 수 가져오기
 function getLinkedSheetCount(fileName) {
     return getRawFileLinkedSheets(fileName).length;
+}
+
+// ========== 원본 파일 폴더 시스템 ==========
+
+// 폴더 색상 옵션
+const RAW_FOLDER_COLORS = [
+    '#FFB74D', // 주황
+    '#4FC3F7', // 하늘
+    '#81C784', // 녹색
+    '#F06292', // 분홍
+    '#BA68C8', // 보라
+    '#FFD54F', // 노랑
+    '#90A4AE', // 회색
+    '#A1887F', // 갈색
+];
+
+// 새 폴더 생성
+function createRawFileFolder(name = '새 폴더') {
+    const folderId = 'rf_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    rawFileFolders[folderId] = {
+        name: name,
+        createdAt: new Date().toISOString(),
+        color: RAW_FOLDER_COLORS[Object.keys(rawFileFolders).length % RAW_FOLDER_COLORS.length]
+    };
+    saveRawFileFolders();
+    renderRawFilesList();
+    showToast(`"${name}" 폴더가 생성되었습니다.`, 'success');
+    return folderId;
+}
+
+// 폴더 삭제
+function deleteRawFileFolder(folderId) {
+    if (!rawFileFolders[folderId]) return;
+
+    const folder = rawFileFolders[folderId];
+    const filesInFolder = Object.keys(rawFileToFolder).filter(f => rawFileToFolder[f] === folderId);
+
+    if (filesInFolder.length > 0) {
+        if (!confirm(`"${folder.name}" 폴더에 ${filesInFolder.length}개의 파일이 있습니다.\n폴더를 삭제하면 파일들이 루트로 이동합니다.\n계속하시겠습니까?`)) {
+            return;
+        }
+        // 파일들을 루트로 이동
+        filesInFolder.forEach(fileName => {
+            delete rawFileToFolder[fileName];
+        });
+    }
+
+    delete rawFileFolders[folderId];
+
+    // 현재 폴더가 삭제된 폴더면 루트로 이동
+    if (currentRawFolderId === folderId) {
+        currentRawFolderId = null;
+    }
+
+    saveRawFileFolders();
+    renderRawFilesList();
+    showToast(`"${folder.name}" 폴더가 삭제되었습니다.`, 'success');
+}
+
+// 폴더 이름 변경
+function renameRawFileFolder(folderId, newName) {
+    if (!rawFileFolders[folderId]) return;
+    if (!newName || !newName.trim()) {
+        showToast('폴더 이름을 입력해주세요.', 'error');
+        return;
+    }
+    rawFileFolders[folderId].name = newName.trim();
+    saveRawFileFolders();
+    renderRawFilesList();
+    showToast('폴더 이름이 변경되었습니다.', 'success');
+}
+
+// 폴더 색상 변경
+function changeRawFolderColor(folderId, color) {
+    if (!rawFileFolders[folderId]) return;
+    rawFileFolders[folderId].color = color;
+    saveRawFileFolders();
+    renderRawFilesList();
+}
+
+// 파일을 폴더로 이동
+function moveRawFileToFolder(fileName, folderId) {
+    if (!rawFiles[fileName]) return;
+
+    if (folderId === null) {
+        // 루트로 이동
+        delete rawFileToFolder[fileName];
+    } else if (rawFileFolders[folderId]) {
+        rawFileToFolder[fileName] = folderId;
+    }
+
+    saveRawFileFolders();
+    renderRawFilesList();
+}
+
+// 선택된 파일들을 폴더로 이동
+function moveSelectedRawFilesToFolder(folderId) {
+    if (selectedRawFiles.size === 0) {
+        showToast('이동할 파일을 선택해주세요.', 'error');
+        return;
+    }
+
+    selectedRawFiles.forEach(fileName => {
+        if (folderId === null) {
+            delete rawFileToFolder[fileName];
+        } else if (rawFileFolders[folderId]) {
+            rawFileToFolder[fileName] = folderId;
+        }
+    });
+
+    const count = selectedRawFiles.size;
+    selectedRawFiles.clear();
+    rawFileSelectMode = false;
+
+    saveRawFileFolders();
+    renderRawFilesList();
+    showToast(`${count}개 파일이 이동되었습니다.`, 'success');
+}
+
+// 폴더 열기
+function openRawFileFolder(folderId) {
+    currentRawFolderId = folderId;
+    renderRawFilesList();
+}
+
+// 상위 폴더(루트)로 이동
+function goToRawFileRoot() {
+    currentRawFolderId = null;
+    renderRawFilesList();
+}
+
+// 폴더 이동 모달 표시
+function showMoveToFolderModal(fileName) {
+    const folders = Object.entries(rawFileFolders);
+    const currentFolder = rawFileToFolder[fileName];
+
+    const modal = document.createElement('div');
+    modal.className = 'raw-file-history-modal';
+    modal.innerHTML = `
+        <div class="history-modal-content copy-sheet-modal">
+            <div class="history-modal-header">
+                <h3>📁 폴더로 이동</h3>
+                <button class="history-modal-close" onclick="this.closest('.raw-file-history-modal').remove()">&times;</button>
+            </div>
+            <div class="history-modal-body">
+                <p style="margin-bottom: 15px; color: #666;">이동할 폴더를 선택하세요:</p>
+                <div class="copy-sheet-list">
+                    <div class="copy-sheet-item ${!currentFolder ? 'current-folder' : ''}" onclick="moveRawFileToFolder('${fileName.replace(/'/g, "\\'")}', null); this.closest('.raw-file-history-modal').remove();">
+                        <span class="copy-sheet-name">📂 루트 (최상위)</span>
+                        ${!currentFolder ? '<span class="current-badge">현재</span>' : ''}
+                    </div>
+                    ${folders.map(([id, folder]) => `
+                        <div class="copy-sheet-item ${currentFolder === id ? 'current-folder' : ''}" onclick="moveRawFileToFolder('${fileName.replace(/'/g, "\\'")}', '${id}'); this.closest('.raw-file-history-modal').remove();">
+                            <span class="copy-sheet-name" style="color: ${folder.color}">📁 ${escHtml(folder.name)}</span>
+                            ${currentFolder === id ? '<span class="current-badge">현재</span>' : ''}
+                        </div>
+                    `).join('')}
+                </div>
+                ${folders.length === 0 ? '<p style="text-align: center; color: #999; padding: 20px;">폴더가 없습니다. 새 폴더를 먼저 생성해주세요.</p>' : ''}
+            </div>
+        </div>
+    `;
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
+
+    document.body.appendChild(modal);
+}
+
+// 폴더 내 파일 수 가져오기
+function getRawFileFolderCount(folderId) {
+    return Object.values(rawFileToFolder).filter(f => f === folderId).length;
+}
+
+// 폴더 데이터 저장
+function saveRawFileFolders() {
+    try {
+        localStorage.setItem('excelmaster_rawFileFolders', JSON.stringify(rawFileFolders));
+        localStorage.setItem('excelmaster_rawFileToFolder', JSON.stringify(rawFileToFolder));
+    } catch (e) {
+        console.warn('폴더 데이터 저장 실패:', e);
+    }
+}
+
+// 폴더 데이터 로드
+function loadRawFileFolders() {
+    try {
+        const foldersData = localStorage.getItem('excelmaster_rawFileFolders');
+        const mappingData = localStorage.getItem('excelmaster_rawFileToFolder');
+
+        if (foldersData) {
+            rawFileFolders = JSON.parse(foldersData);
+        }
+        if (mappingData) {
+            rawFileToFolder = JSON.parse(mappingData);
+        }
+
+        // 존재하지 않는 파일 매핑 정리
+        for (const fileName in rawFileToFolder) {
+            if (!rawFiles[fileName]) {
+                delete rawFileToFolder[fileName];
+            }
+        }
+    } catch (e) {
+        console.warn('폴더 데이터 로드 실패:', e);
+        rawFileFolders = {};
+        rawFileToFolder = {};
+    }
+}
+
+// 선택된 파일들을 폴더로 이동하는 모달
+function showMoveSelectedToFolderModal() {
+    if (selectedRawFiles.size === 0) {
+        showToast('이동할 파일을 선택해주세요.', 'error');
+        return;
+    }
+
+    const folders = Object.entries(rawFileFolders);
+
+    const modal = document.createElement('div');
+    modal.className = 'raw-file-history-modal';
+    modal.innerHTML = `
+        <div class="history-modal-content copy-sheet-modal">
+            <div class="history-modal-header">
+                <h3>📁 ${selectedRawFiles.size}개 파일 이동</h3>
+                <button class="history-modal-close" onclick="this.closest('.raw-file-history-modal').remove()">&times;</button>
+            </div>
+            <div class="history-modal-body">
+                <p style="margin-bottom: 15px; color: #666;">이동할 폴더를 선택하세요:</p>
+                <div class="copy-sheet-list">
+                    <div class="copy-sheet-item" onclick="moveSelectedRawFilesToFolder(null); this.closest('.raw-file-history-modal').remove();">
+                        <span class="copy-sheet-name">📂 루트 (최상위)</span>
+                    </div>
+                    ${folders.map(([id, folder]) => `
+                        <div class="copy-sheet-item" onclick="moveSelectedRawFilesToFolder('${id}'); this.closest('.raw-file-history-modal').remove();">
+                            <span class="copy-sheet-name" style="color: ${folder.color}">📁 ${escHtml(folder.name)}</span>
+                            <span class="copy-sheet-rows">${getRawFileFolderCount(id)}개 파일</span>
+                        </div>
+                    `).join('')}
+                </div>
+                ${folders.length === 0 ? '<p style="text-align: center; color: #999; padding: 20px;">폴더가 없습니다.<br>먼저 폴더를 생성해주세요.</p>' : ''}
+                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;">
+                    <button class="btn-copy-all" onclick="createRawFileFolder(); this.closest('.raw-file-history-modal').remove();">
+                        📁+ 새 폴더 만들기
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
+
+    document.body.appendChild(modal);
 }
 
 // 원본 파일 선택
