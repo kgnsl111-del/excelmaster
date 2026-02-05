@@ -5088,6 +5088,7 @@ async function parseExcelOptimized(data) {
         if (matchedSheet && !isFirstUpload) {
             // 스마트 병합: 기본명 + 헤더 일치 → 자동 병합 (중복 제외)
             const existingSheet = WB[matchedSheet];
+            const existingOriginalCount = existingSheet.data.length; // 이름 변경 비교용 (추가 전)
             const existingDataSet = new Set(existingSheet.data.map(row => JSON.stringify(row)));
             const uniqueNewRows = newData.filter(row => !existingDataSet.has(JSON.stringify(row)));
 
@@ -5097,7 +5098,6 @@ async function parseExcelOptimized(data) {
                 existingSheet.data = [...existingSheet.data, ...uniqueNewRows];
 
                 // 새 파일 데이터가 더 많으면 시트명 변경
-                const existingOriginalCount = existingSheet.data.length - uniqueNewRows.length;
                 if (newData.length > existingOriginalCount && name !== matchedSheet) {
                     WB[name] = existingSheet;
                     delete WB[matchedSheet];
@@ -14294,6 +14294,9 @@ function accumulateRawFileData(fileName, newSheets) {
             sheetResult.duplicateRows = (newSheet.data || []).length - uniqueNewRows.length;
             sheetResult.addedRows = uniqueNewRows.length;
 
+            // 기존 데이터 수 저장 (이름 변경 비교용)
+            const existingOriginalCount = existingSheet.data.length;
+
             if (uniqueNewRows.length > 0) {
                 existingSheet.data = [...existingSheet.data, ...uniqueNewRows];
                 existingSheet.uploadHistory = existingSheet.uploadHistory || [];
@@ -14306,7 +14309,6 @@ function accumulateRawFileData(fileName, newSheets) {
             }
 
             // 새 파일 데이터가 더 많으면 시트명을 새 이름으로 변경
-            const existingOriginalCount = existingSheet.data.length - uniqueNewRows.length;
             if ((newSheet.data || []).length > existingOriginalCount && sheetName !== matchedSheetName) {
                 rawFiles[targetFileName].sheets[sheetName] = existingSheet;
                 delete rawFiles[targetFileName].sheets[matchedSheetName];
