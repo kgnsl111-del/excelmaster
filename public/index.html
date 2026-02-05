@@ -1824,7 +1824,8 @@ function updateSelectAllCheckbox() {
 }
 
 function updateDownloadSelectedCount() {
-    document.getElementById('selectedCount').textContent = selectedSheets.size + '개 선택';
+    const el = document.getElementById('selectedCount');
+    if (el) el.textContent = selectedSheets.size + '개 선택';
 }
 
 function executeDownloadSelected() {
@@ -5682,6 +5683,7 @@ function deleteSheet(name) {
 
 function toggleResetMenu() {
     const menu = document.getElementById('resetMenu');
+    if (!menu) return;
     menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
 }
 
@@ -5713,7 +5715,8 @@ function closeToolbarMoreOnClickOutside(e) {
 // 메뉴 외부 클릭 시 닫기
 document.addEventListener('click', e => {
     if (!e.target.closest('.reset-menu') && !e.target.closest('.toolbar-more-item.danger')) {
-        document.getElementById('resetMenu').style.display = 'none';
+        const resetMenu = document.getElementById('resetMenu');
+        if (resetMenu) resetMenu.style.display = 'none';
     }
 });
 
@@ -5966,11 +5969,11 @@ function showColumnManager() {
         </li>`;
     }
     list.innerHTML = html;
-    document.getElementById('columnModal').classList.add('show');
+    document.getElementById('columnModal')?.classList.add('show');
 }
 
 function closeColumnManager() {
-    document.getElementById('columnModal').classList.remove('show');
+    document.getElementById('columnModal')?.classList.remove('show');
 }
 
 function selectAllColumns() {
@@ -6890,8 +6893,10 @@ function updateStatus() {
     const hiddenCount = HIDDEN_COLS[SHEET] ? HIDDEN_COLS[SHEET].size : 0;
     const hiddenText = hiddenCount > 0 ? ` (${hiddenCount}개 숨김)` : '';
     
-    document.getElementById('statusLeft').textContent = `현재 시트: ${SHEET}${modeText}`;
-    document.getElementById('statusRight').textContent = `전체 ${totalRows}건 | 열: ${sheet.headers.length}${hiddenText}`;
+    const statusLeft = document.getElementById('statusLeft');
+    const statusRight = document.getElementById('statusRight');
+    if (statusLeft) statusLeft.textContent = `현재 시트: ${SHEET}${modeText}`;
+    if (statusRight) statusRight.textContent = `전체 ${totalRows}건 | 열: ${sheet.headers.length}${hiddenText}`;
     
     // 페이지 네비게이터 업데이트
     updatePageNavigator();
@@ -8048,7 +8053,8 @@ function updateSelectedCount() {
             break;
     }
     
-    document.getElementById('selectedCount').textContent = `${selected}/${total}개 선택됨`;
+    const countEl = document.getElementById('selectedCount');
+    if (countEl) countEl.textContent = `${selected}/${total}개 선택됨`;
 }
 
 function applySelectedReview() {
