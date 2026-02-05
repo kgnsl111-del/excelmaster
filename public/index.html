@@ -1516,9 +1516,9 @@ function renderMainScreen() {
 
     // 검색 결과는 유지 (초기화하지 않음)
 
-    // 파일 그룹 뷰 모드일 때
+    // 파일 그룹 뷰 모드일 때 (전체 시트 대상)
     if (fileGroupViewMode === 'grouped' && currentFolderId === null && !showFavoritesOnly) {
-        grid.innerHTML = renderFileGroupedView(nonEmptySheets);
+        grid.innerHTML = renderFileGroupedView(allNonEmptySheets);
     } else {
         // 기존 플랫 뷰 (폴더 뷰)
         // 현재 폴더의 하위 폴더들 가져오기
@@ -1575,8 +1575,8 @@ function renderFileGroupedView(allSheets) {
     // 뷰 모드 전환 버튼
     html += `
         <div class="file-group-view-toggle">
-            <button class="view-toggle-btn active" onclick="fileGroupViewMode='grouped'; renderMainScreen();">📁 파일별</button>
-            <button class="view-toggle-btn" onclick="fileGroupViewMode='flat'; renderMainScreen();">📄 전체 시트</button>
+            <button class="view-toggle-btn ${fileGroupViewMode === 'grouped' ? 'active' : ''}" onclick="fileGroupViewMode='grouped'; renderMainScreen();">📁 파일별</button>
+            <button class="view-toggle-btn ${fileGroupViewMode === 'flat' ? 'active' : ''}" onclick="fileGroupViewMode='flat'; renderMainScreen();">📄 전체 시트</button>
         </div>
     `;
 
@@ -1590,6 +1590,9 @@ function renderFileGroupedView(allSheets) {
 
     // 각 파일 그룹 렌더링
     for (const group of sortedGroups) {
+        // sheets 배열이 없으면 건너뛰기
+        if (!group.sheets || !Array.isArray(group.sheets)) continue;
+
         // 실제 존재하는 시트만 필터링
         const validSheets = group.sheets.filter(name =>
             WB[name] && WB[name].data && WB[name].data.length > 0 &&
@@ -7404,7 +7407,7 @@ function removeSheetFromFileGroup(sheetName) {
 // 파일 그룹 전체 삭제
 function deleteFileGroup(fileId) {
     const group = fileGroups[fileId];
-    if (!group) return;
+    if (!group || !group.sheets) return;
 
     const sheetCount = group.sheets.length;
     if (!confirm(`"${group.name}" 파일의 ${sheetCount}개 시트를 모두 삭제하시겠습니까?`)) {
@@ -7439,7 +7442,7 @@ function deleteFileGroup(fileId) {
 // 파일 그룹 전체 다운로드
 async function downloadFileGroup(fileId) {
     const group = fileGroups[fileId];
-    if (!group) return;
+    if (!group || !group.sheets) return;
 
     const wb = XLSX.utils.book_new();
     let sheetCount = 0;
