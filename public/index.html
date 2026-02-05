@@ -14308,16 +14308,16 @@ function showSmartMergeResult(mergeResult, sourceFileName) {
 
     // 새 파일이거나 시트가 1개뿐이면 간단한 toast
     if (isNewFile) {
-        showToast(`새 파일 등록: ${displayName} (${totalAdded}행)`, 'success');
+        toast(`새 파일 등록: ${displayName} (${totalAdded}행)`);
         return;
     }
 
     if (sheetResults.length === 1) {
         const r = sheetResults[0];
         if (r.addedRows === 0) {
-            showToast(`'${displayName}' 중복 데이터 (새 행 없음)`, 'info');
+            toast(`'${displayName}' 중복 데이터 (새 행 없음)`);
         } else {
-            showToast(`'${displayName} - ${r.sheetName}' +${r.addedRows}행 (중복 ${r.duplicateRows}건 제외)`, 'success');
+            toast(`'${displayName} - ${r.sheetName}' +${r.addedRows}행 (중복 ${r.duplicateRows}건 제외)`);
         }
         return;
     }
