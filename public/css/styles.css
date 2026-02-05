@@ -246,10 +246,62 @@
             flex-shrink: 0;
             flex-wrap: wrap;
         }
+        .toolbar.compact {
+            padding: 6px 12px;
+            gap: 8px;
+        }
+        .toolbar.compact .date-input.compact {
+            padding: 4px 6px;
+            font-size: 11px;
+            width: 110px;
+        }
         .toolbar-secondary {
             background: linear-gradient(180deg, #5a6a6e 0%, #4a5a5e 100%);
             border-bottom: 2px solid var(--retro-charcoal);
             padding: 6px 15px;
+        }
+
+        /* 툴바 더보기 메뉴 */
+        .toolbar-more-wrapper {
+            position: relative;
+            margin-left: auto;
+        }
+        .toolbar-more-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: white;
+            border: 2px solid var(--retro-charcoal);
+            border-radius: 6px;
+            box-shadow: 4px 4px 0 rgba(0,0,0,0.2);
+            z-index: 1000;
+            min-width: 160px;
+            margin-top: 5px;
+        }
+        .toolbar-more-menu.show {
+            display: block;
+        }
+        .toolbar-more-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            font-size: 12px;
+            color: var(--retro-charcoal);
+            transition: background 0.1s;
+        }
+        .toolbar-more-item:hover {
+            background: var(--retro-mint);
+        }
+        .toolbar-more-item.danger {
+            color: var(--retro-coral);
+        }
+        .toolbar-more-item.danger:hover {
+            background: #ffe5e5;
+        }
+        .toolbar-more-divider {
+            height: 1px;
+            background: var(--retro-border);
+            margin: 5px 0;
         }
         .toolbar-group {
             display: flex;

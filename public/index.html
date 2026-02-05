@@ -434,70 +434,57 @@
     </div>
     
     <div id="detailScreen" style="display:none;">
-        <!-- 툴바 1줄: 파일/저장 관련 -->
-        <div class="toolbar">
-            <button class="tool-btn" onclick="goToMain()">◀ 메인</button>
+        <!-- 간소화된 단일 툴바 -->
+        <div class="toolbar compact">
+            <button class="tool-btn" onclick="goToMain()">◀</button>
             <span class="current-sheet-name" id="currentSheetName"></span>
-            
+
             <div class="toolbar-group">
                 <input type="file" id="fileInput" class="file-input" accept=".xlsx,.xls,.csv,.tsv,.txt,.pdf,.pptx,.docx,.html,.htm">
-                <button class="tool-btn" onclick="document.getElementById('fileInput').click()">열기</button>
-                <button class="tool-btn" onclick="downloadExcel()">저장</button>
-                <button class="tool-btn" onclick="showCurrentSheetExportModal()">다운로드 ▼</button>
-                <button class="tool-btn" onclick="printSheet()">인쇄</button>
+                <button class="tool-btn" onclick="downloadExcel()" title="저장">💾</button>
+                <button class="tool-btn" onclick="saveSheetToFirestore(SHEET)" title="서버 저장" style="background:var(--retro-green);color:white;">☁️</button>
             </div>
-            
+
             <div class="toolbar-group">
-                <button class="tool-btn" onclick="saveSheetToFirestore(SHEET)" style="background:var(--retro-green);color:white;">서버 저장</button>
+                <button class="tool-btn" onclick="undo()" title="실행취소">↩</button>
+                <button class="tool-btn" onclick="redo()" title="다시실행">↪</button>
+                <button class="tool-btn" onclick="insertRow()" title="행 추가">+행</button>
+                <button class="tool-btn danger" onclick="deleteSelected()" title="삭제">🗑️</button>
             </div>
-            
+
             <div class="toolbar-group">
-                <label style="font-size:11px;color:var(--retro-warm-gray);">작업일:</label>
-                <input type="date" id="workDate" class="date-input">
+                <input type="date" id="workDate" class="date-input compact">
                 <button class="tool-btn primary" onclick="addNewEntry()">+ 신규</button>
-                <button class="tool-btn" id="finishEntryBtn" onclick="finishNewEntryMode()" style="display:none;background:var(--retro-mustard);">입력 완료</button>
+                <button class="tool-btn" id="finishEntryBtn" onclick="finishNewEntryMode()" style="display:none;background:var(--retro-mustard);">완료</button>
             </div>
-        </div>
-        
-        <!-- 툴바 2줄: 편집 관련 -->
-        <div class="toolbar toolbar-secondary">
-            <div class="toolbar-group">
-                <button class="tool-btn" onclick="insertRow()">행+</button>
-                <button class="tool-btn" onclick="insertCol()">열+</button>
-                <button class="tool-btn danger" onclick="deleteSelected()">삭제</button>
-            </div>
-            
-            <div class="toolbar-group">
-                <button class="tool-btn" onclick="undo()" title="Ctrl+Z">↩</button>
-                <button class="tool-btn" onclick="redo()" title="Ctrl+Y">↪</button>
-            </div>
-            
-            <div class="toolbar-group">
-                <button class="tool-btn" onclick="toggleCopyMode()" id="copyModeBtn">복사모드</button>
-                <button class="tool-btn" onclick="copyCell()">복사</button>
-                <button class="tool-btn" onclick="pasteCell()">붙여넣기</button>
-            </div>
-            
-            <div class="toolbar-group">
-                <button class="tool-btn" onclick="toggleResizeMode()" id="resizeModeBtn">크기조절</button>
-                <button class="tool-btn" onclick="showColumnManager()" id="colManagerBtn">열 관리</button>
-            </div>
-            
-            <div class="toolbar-group font-size-controls">
-                <button class="tool-btn font-size-btn" onclick="decreaseFontSize()" title="글자 작게">A-</button>
-                <span class="font-size-display" id="fontSizeDisplay">100%</span>
-                <button class="tool-btn font-size-btn" onclick="increaseFontSize()" title="글자 크게">A+</button>
-            </div>
-            
-            <div class="toolbar-group" style="position:relative;">
-                <button class="tool-btn" onclick="toggleResetMenu()" style="background:var(--retro-coral);color:white;">초기화 ▼</button>
-                <div class="reset-menu" id="resetMenu">
-                    <div class="menu-item" onclick="resetSheetData()">데이터만 삭제</div>
-                    <div class="menu-item" onclick="resetColumnOrder()">열 순서 초기화</div>
-                    <div class="menu-item" onclick="resetAllSizes()">크기 초기화</div>
-                    <div class="menu-item danger" onclick="resetSheetAll()">전체 삭제</div>
+
+            <!-- 더보기 드롭다운 -->
+            <div class="toolbar-more-wrapper">
+                <button class="tool-btn" onclick="toggleToolbarMore()">⋯</button>
+                <div class="toolbar-more-menu" id="toolbarMoreMenu">
+                    <div class="toolbar-more-item" onclick="document.getElementById('fileInput').click(); closeToolbarMore();">📂 파일 열기</div>
+                    <div class="toolbar-more-item" onclick="showCurrentSheetExportModal(); closeToolbarMore();">📥 다운로드</div>
+                    <div class="toolbar-more-item" onclick="printSheet(); closeToolbarMore();">🖨️ 인쇄</div>
+                    <div class="toolbar-more-divider"></div>
+                    <div class="toolbar-more-item" onclick="insertCol(); closeToolbarMore();">➕ 열 추가</div>
+                    <div class="toolbar-more-item" onclick="showColumnManager(); closeToolbarMore();">📊 열 관리</div>
+                    <div class="toolbar-more-item" onclick="toggleResizeMode(); closeToolbarMore();">↔️ 크기 조절</div>
+                    <div class="toolbar-more-divider"></div>
+                    <div class="toolbar-more-item" onclick="toggleCopyMode(); closeToolbarMore();">📋 복사 모드</div>
+                    <div class="toolbar-more-item" onclick="decreaseFontSize(); closeToolbarMore();">A- 글자 작게</div>
+                    <div class="toolbar-more-item" onclick="increaseFontSize(); closeToolbarMore();">A+ 글자 크게</div>
+                    <div class="toolbar-more-divider"></div>
+                    <div class="toolbar-more-item danger" onclick="toggleResetMenu(); closeToolbarMore();">🗑️ 초기화</div>
                 </div>
             </div>
+        </div>
+
+        <!-- 초기화 메뉴 (기존 유지) -->
+        <div class="reset-menu" id="resetMenu" style="display:none;">
+            <div class="menu-item" onclick="resetSheetData()">데이터만 삭제</div>
+            <div class="menu-item" onclick="resetColumnOrder()">열 순서 초기화</div>
+            <div class="menu-item" onclick="resetAllSizes()">크기 초기화</div>
+            <div class="menu-item danger" onclick="resetSheetAll()">전체 삭제</div>
         </div>
         
         <div class="formula-bar">
@@ -5488,13 +5475,38 @@ function deleteSheet(name) {
 
 function toggleResetMenu() {
     const menu = document.getElementById('resetMenu');
+    menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+}
+
+// 툴바 더보기 메뉴
+function toggleToolbarMore() {
+    const menu = document.getElementById('toolbarMoreMenu');
+    if (!menu) return;
     menu.classList.toggle('show');
+
+    if (menu.classList.contains('show')) {
+        setTimeout(() => {
+            document.addEventListener('click', closeToolbarMoreOnClickOutside, { once: true });
+        }, 10);
+    }
+}
+
+function closeToolbarMore() {
+    const menu = document.getElementById('toolbarMoreMenu');
+    if (menu) menu.classList.remove('show');
+}
+
+function closeToolbarMoreOnClickOutside(e) {
+    const wrapper = document.querySelector('.toolbar-more-wrapper');
+    if (wrapper && !wrapper.contains(e?.target)) {
+        closeToolbarMore();
+    }
 }
 
 // 메뉴 외부 클릭 시 닫기
 document.addEventListener('click', e => {
-    if (!e.target.closest('.toolbar-group[style*="position:relative"]')) {
-        document.getElementById('resetMenu')?.classList.remove('show');
+    if (!e.target.closest('.reset-menu') && !e.target.closest('.toolbar-more-item.danger')) {
+        document.getElementById('resetMenu').style.display = 'none';
     }
 });
 
