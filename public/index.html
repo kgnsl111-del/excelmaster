@@ -1517,10 +1517,17 @@ function renderMainScreen() {
     // 검색 결과는 유지 (초기화하지 않음)
 
     // 파일 그룹 뷰 모드일 때 (전체 시트 대상)
+    let useGroupedView = false;
     if (fileGroupViewMode === 'grouped' && currentFolderId === null && !showFavoritesOnly) {
-        grid.innerHTML = renderFileGroupedView(allNonEmptySheets);
-    } else {
-        // 기존 플랫 뷰 (폴더 뷰)
+        const groupedHtml = renderFileGroupedView(allNonEmptySheets);
+        if (groupedHtml !== null) {
+            grid.innerHTML = groupedHtml;
+            useGroupedView = true;
+        }
+    }
+
+    // 플랫 뷰 (기존 폴더 뷰)
+    if (!useGroupedView) {
         // 현재 폴더의 하위 폴더들 가져오기
         const childFolders = Object.entries(sheetFolders)
             .filter(([id, folder]) => folder.parentId === currentFolderId)
@@ -1572,6 +1579,17 @@ function renderFileGroupedView(allSheets) {
     const iconLayout = { width: 90, height: 95, cols: 8 };
     let html = '';
 
+    // 파일 그룹들 정렬 (최신 업로드 순)
+    const sortedGroups = Object.entries(fileGroups)
+        .filter(([id, group]) => group && group.sheets && group.sheets.length > 0)
+        .map(([id, group]) => ({ id, ...group }))
+        .sort((a, b) => (b.uploadedAt || 0) - (a.uploadedAt || 0));
+
+    // 파일 그룹이 하나도 없으면 null 반환 (플랫 뷰로 전환)
+    if (sortedGroups.length === 0) {
+        return null;
+    }
+
     // 뷰 모드 전환 버튼
     html += `
         <div class="file-group-view-toggle">
@@ -1580,19 +1598,11 @@ function renderFileGroupedView(allSheets) {
         </div>
     `;
 
-    // 파일 그룹들 정렬 (최신 업로드 순)
-    const sortedGroups = Object.entries(fileGroups)
-        .map(([id, group]) => ({ id, ...group }))
-        .sort((a, b) => (b.uploadedAt || 0) - (a.uploadedAt || 0));
-
     // 그룹화된 시트들
     const groupedSheetNames = new Set();
 
     // 각 파일 그룹 렌더링
     for (const group of sortedGroups) {
-        // sheets 배열이 없으면 건너뛰기
-        if (!group.sheets || !Array.isArray(group.sheets)) continue;
-
         // 실제 존재하는 시트만 필터링
         const validSheets = group.sheets.filter(name =>
             WB[name] && WB[name].data && WB[name].data.length > 0 &&
