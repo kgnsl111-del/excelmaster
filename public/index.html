@@ -2256,15 +2256,19 @@ function toggleFavoriteMode() {
     favoriteMode = !favoriteMode;
     const btn = document.getElementById('favoriteModeBtn');
     const grid = document.getElementById('sheetGrid');
-    
+
     if (favoriteMode) {
-        btn.classList.add('active');
-        btn.textContent = '완료';
-        grid.classList.add('favorite-mode');
+        if (btn) {
+            btn.classList.add('active');
+            btn.textContent = '완료';
+        }
+        grid?.classList.add('favorite-mode');
     } else {
-        btn.classList.remove('active');
-        btn.textContent = '즐겨찾기';
-        grid.classList.remove('favorite-mode');
+        if (btn) {
+            btn.classList.remove('active');
+            btn.textContent = '즐겨찾기';
+        }
+        grid?.classList.remove('favorite-mode');
     }
 }
 
