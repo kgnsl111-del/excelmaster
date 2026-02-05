@@ -2456,15 +2456,18 @@
         .sheet-grid.icon-view.free-position .sheet-card {
             position: absolute;
             margin: 0;
-            will-change: left, top;
+            transition: left 0.08s ease-out, top 0.08s ease-out;
         }
         .sheet-grid.icon-view.free-position .folder-card.dragging-position,
         .sheet-grid.icon-view.free-position .sheet-card.dragging-position {
-            opacity: 0.8;
+            opacity: 0.9;
             z-index: 1000;
             pointer-events: none;
+            transition: none;
+            transform: scale(1.05);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
         }
-        
+
         .file-card-grid.icon-view.free-position {
             display: block;
             position: relative;
@@ -2474,13 +2477,16 @@
         .file-card-grid.icon-view.free-position .file-card {
             position: absolute;
             margin: 0;
-            will-change: left, top;
+            transition: left 0.08s ease-out, top 0.08s ease-out;
         }
         .file-card-grid.icon-view.free-position .folder-card.dragging-position,
         .file-card-grid.icon-view.free-position .file-card.dragging-position {
-            opacity: 0.8;
+            opacity: 0.9;
             z-index: 1000;
             pointer-events: none;
+            transition: none;
+            transform: scale(1.05);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
         }
         
         /* 아이콘 뷰 - 폴더 */

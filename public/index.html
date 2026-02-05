@@ -20415,81 +20415,69 @@ function startPositionDrag(e, type, id) {
     // preventDefault 하지 않음 - 클릭 이벤트 허용
 }
 
-// 위치 드래그 이동 (requestAnimationFrame 사용) - 성능 최적화 버전
+// 위치 드래그 이동 - 윈도우 스타일 격자 스냅
+const GRID_WIDTH = 100;  // 격자 너비
+const GRID_HEIGHT = 110; // 격자 높이
+
 function handlePositionDragMove(e) {
     if (!positionDragState) return;
-    
+
     // 마지막 좌표 저장
     positionDragState.lastX = e.clientX;
     positionDragState.lastY = e.clientY;
-    
+
     // 최소 이동 거리 체크 (5px 이상 이동해야 드래그 시작)
     if (!dragStarted) {
         const dx = e.clientX - positionDragState.startX;
         const dy = e.clientY - positionDragState.startY;
-        // Math.sqrt 대신 제곱 비교로 최적화
-        if (dx * dx + dy * dy < 25) return; // 5*5 = 25
-        
+        if (dx * dx + dy * dy < 25) return;
+
         // 드래그 시작
         dragStarted = true;
         positionDragState.element.classList.add('dragging-position');
     }
-    
-    // 이미 애니메이션 프레임이 예약되어 있으면 스킵
-    if (dragAnimationFrame) return;
-    
-    dragAnimationFrame = requestAnimationFrame(() => {
-        if (!positionDragState) {
-            dragAnimationFrame = null;
-            return;
-        }
-        
-        const { element, type, containerLeft, containerTop, offsetX, offsetY, lastX, lastY } = positionDragState;
-        
-        // 위치 업데이트
-        let newX = lastX - containerLeft - offsetX;
-        let newY = lastY - containerTop - offsetY;
-        
-        // 음수 방지
-        newX = Math.max(0, newX);
-        newY = Math.max(0, newY);
-        
-        element.style.left = newX + 'px';
-        element.style.top = newY + 'px';
-        
-        // 폴더 하이라이트 처리 (시트/파일 드래그 시에만) - 쓰로틀링 적용
-        if (type === 'sheet' || type === 'file') {
-            const now = performance.now();
-            if (now - lastHoverCheckTime >= HOVER_CHECK_INTERVAL) {
-                lastHoverCheckTime = now;
-                
-                // pointerEvents 조작 최소화
-                const originalPointerEvents = element.style.pointerEvents;
-                element.style.pointerEvents = 'none';
-                const hoverTarget = document.elementFromPoint(lastX, lastY);
-                element.style.pointerEvents = originalPointerEvents;
-                
-                const folderCard = hoverTarget?.closest('.folder-card');
-                
-                // 이전 하이라이트와 다를 때만 DOM 조작
-                if (folderCard !== currentHighlightedFolder) {
-                    // 이전 하이라이트 제거 (캐시된 요소만)
-                    if (currentHighlightedFolder) {
-                        currentHighlightedFolder.classList.remove('drag-over');
-                    }
-                    
-                    // 새 하이라이트 추가
-                    if (folderCard) {
-                        folderCard.classList.add('drag-over');
-                    }
-                    
-                    currentHighlightedFolder = folderCard;
+
+    // 즉시 위치 업데이트 (requestAnimationFrame 없이 직접)
+    const { element, type, containerLeft, containerTop, offsetX, offsetY, lastX, lastY } = positionDragState;
+
+    // 위치 계산
+    let newX = lastX - containerLeft - offsetX;
+    let newY = lastY - containerTop - offsetY;
+
+    // 음수 방지
+    newX = Math.max(0, newX);
+    newY = Math.max(0, newY);
+
+    // 격자에 실시간 스냅 (윈도우 스타일)
+    const snappedX = Math.round(newX / GRID_WIDTH) * GRID_WIDTH + 8;
+    const snappedY = Math.round(newY / GRID_HEIGHT) * GRID_HEIGHT + 8;
+
+    element.style.left = snappedX + 'px';
+    element.style.top = snappedY + 'px';
+
+    // 폴더 하이라이트 처리 (시트/파일 드래그 시에만)
+    if (type === 'sheet' || type === 'file') {
+        const now = performance.now();
+        if (now - lastHoverCheckTime >= HOVER_CHECK_INTERVAL) {
+            lastHoverCheckTime = now;
+
+            element.style.pointerEvents = 'none';
+            const hoverTarget = document.elementFromPoint(lastX, lastY);
+            element.style.pointerEvents = '';
+
+            const folderCard = hoverTarget?.closest('.folder-card');
+
+            if (folderCard !== currentHighlightedFolder) {
+                if (currentHighlightedFolder) {
+                    currentHighlightedFolder.classList.remove('drag-over');
                 }
+                if (folderCard) {
+                    folderCard.classList.add('drag-over');
+                }
+                currentHighlightedFolder = folderCard;
             }
         }
-        
-        dragAnimationFrame = null;
-    });
+    }
 }
 
 // 위치 드래그 종료
@@ -20571,10 +20559,8 @@ function endPositionDrag(e) {
     newY = Math.max(0, newY);
     
     // 격자에 스냅 (윈도우 스타일 정렬)
-    const gridWidth = 90;
-    const gridHeight = 95;
-    newX = Math.round(newX / gridWidth) * gridWidth + 10;
-    newY = Math.round(newY / gridHeight) * gridHeight + 10;
+    newX = Math.round(newX / GRID_WIDTH) * GRID_WIDTH + 8;
+    newY = Math.round(newY / GRID_HEIGHT) * GRID_HEIGHT + 8;
     
     // 위치 저장
     if (type === 'sheet') {
