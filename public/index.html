@@ -5016,10 +5016,7 @@ async function parseExcelOptimized(data) {
     
     // 기존 WB가 비어있는지 확인 (첫 업로드인지)
     const isFirstUpload = Object.keys(WB).every(name => !WB[name] || !WB[name].data || WB[name].data.length === 0);
-    
-    // 헤더별로 그룹화할 임시 저장소
-    const headerGroups = {}; // { headerStr: { existingSheet, newSheets: [{name, data}] } }
-    
+
     for (let s = 0; s < totalSheets; s++) {
         const name = wb.SheetNames[s];
         updateLoadingText(`시트 처리 중... (${s + 1}/${totalSheets}) ${name}`);
@@ -5063,29 +5060,58 @@ async function parseExcelOptimized(data) {
         if (newData.length === 0) {
             continue;
         }
-        
-        // 헤더가 동일한 기존 시트 찾기 (시트명 무관)
+
+        // 시트명에서 날짜 제거하는 함수
+        const getSheetBaseName = (sheetName) => {
+            return sheetName
+                .replace(/\s*\d{4}\.\d{2}\.\d{2}/g, '')  // 2026.01.15 형식 제거
+                .replace(/\s*\d{4}-\d{2}-\d{2}/g, '')    // 2026-01-15 형식 제거
+                .trim() || sheetName;
+        };
+
+        const newBaseName = getSheetBaseName(name);
         const headerStr = JSON.stringify(newHeaders);
-        const matchingSheets = !isFirstUpload ? findSheetsByHeader(newHeaders) : [];
-        
-        if (matchingSheets.length > 0) {
-            // 헤더가 동일한 시트 발견 → 그룹에 추가
-            const targetSheet = matchingSheets.find(sn => sn === name) || matchingSheets[0];
-            
-            if (!headerGroups[headerStr]) {
-                headerGroups[headerStr] = {
-                    existingSheet: targetSheet,
-                    existingRows: WB[targetSheet].data.length,
-                    headers: newHeaders,
-                    newSheets: []
-                };
+
+        // 기본명 + 헤더가 같은 기존 시트 찾기
+        let matchedSheet = null;
+        for (const existingName of Object.keys(WB)) {
+            if (!WB[existingName] || !WB[existingName].data || WB[existingName].data.length === 0) continue;
+            const existingBaseName = getSheetBaseName(existingName);
+            const existingHeaderStr = JSON.stringify(WB[existingName].headers);
+
+            if (existingBaseName === newBaseName && existingHeaderStr === headerStr) {
+                matchedSheet = existingName;
+                break;
             }
-            
-            headerGroups[headerStr].newSheets.push({
-                name: name,
-                data: newData,
-                rows: newData.length
-            });
+        }
+
+        if (matchedSheet && !isFirstUpload) {
+            // 스마트 병합: 기본명 + 헤더 일치 → 자동 병합 (중복 제외)
+            const existingSheet = WB[matchedSheet];
+            const existingDataSet = new Set(existingSheet.data.map(row => JSON.stringify(row)));
+            const uniqueNewRows = newData.filter(row => !existingDataSet.has(JSON.stringify(row)));
+
+            const duplicateCount = newData.length - uniqueNewRows.length;
+
+            if (uniqueNewRows.length > 0) {
+                existingSheet.data = [...existingSheet.data, ...uniqueNewRows];
+
+                // 새 파일 데이터가 더 많으면 시트명 변경
+                const existingOriginalCount = existingSheet.data.length - uniqueNewRows.length;
+                if (newData.length > existingOriginalCount && name !== matchedSheet) {
+                    WB[name] = existingSheet;
+                    delete WB[matchedSheet];
+                    COL_ORDER[name] = COL_ORDER[matchedSheet] || newHeaders.map((_, i) => i);
+                    delete COL_ORDER[matchedSheet];
+                    HIDDEN_COLS[name] = HIDDEN_COLS[matchedSheet] || new Set();
+                    delete HIDDEN_COLS[matchedSheet];
+                    toast(`'${matchedSheet}' → '${name}' 병합: +${uniqueNewRows.length}행 (중복 ${duplicateCount}건 제외)`);
+                } else {
+                    toast(`'${matchedSheet}' 병합: +${uniqueNewRows.length}행 (중복 ${duplicateCount}건 제외)`);
+                }
+            } else {
+                toast(`'${matchedSheet}' 중복 데이터 (새 행 없음, ${duplicateCount}건 제외)`);
+            }
             duplicateSheets++;
         } else if (WB[name] && WB[name].data && WB[name].data.length > 0) {
             // 같은 이름이지만 헤더가 다른 경우 → 새 이름으로 저장
@@ -5112,33 +5138,13 @@ async function parseExcelOptimized(data) {
         }
     }
     
-    // 그룹화된 중복 시트 처리
-    for (const headerStr in headerGroups) {
-        const group = headerGroups[headerStr];
-        
-        if (group.newSheets.length === 1) {
-            // 1:1 병합 → 기존 방식
-            const sheet = group.newSheets[0];
-            queueDuplicate(
-                group.existingSheet,
-                group.existingRows,
-                sheet.name,
-                sheet.rows,
-                { headers: group.headers, data: sheet.data }
-            );
-        } else if (group.newSheets.length >= 2) {
-            // 2개 이상 → 그룹 병합 모달
-            queueDuplicateGroup(group);
-        }
-    }
-    
     // 결과 메시지
     if (addedSheets > 0 && duplicateSheets === 0) {
         toast(`${addedSheets}개 시트 추가됨: ${addedSheetNames.slice(0, 3).join(', ')}${addedSheetNames.length > 3 ? ' 외 ' + (addedSheetNames.length - 3) + '개' : ''}`);
     } else if (addedSheets > 0 && duplicateSheets > 0) {
-        toast(`${addedSheets}개 시트 추가됨, ${duplicateSheets}개 중복 확인 필요`);
+        toast(`${addedSheets}개 시트 추가됨, ${duplicateSheets}개 자동 병합됨`);
     } else if (duplicateSheets > 0) {
-        // 중복만 있으면 모달에서 처리
+        // 자동 병합됨 - 개별 toast에서 처리
     } else {
         toast('추가된 시트가 없습니다');
     }
