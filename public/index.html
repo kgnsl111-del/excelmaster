@@ -1400,8 +1400,7 @@ function renderSheetCardHtml(name, sheetAutoIndex, iconLayout) {
             <div class="${commonClass}" ${commonAttrs}
                  onclick="if(toggleMultiSelect(event, '${safeName}')) return; clearNewBadge('${safeName}')">
                 <input type="checkbox" class="sheet-card-checkbox" data-sheet="${escHtml(name)}" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleSheetSelect('${safeName}')">
-                <button class="sheet-card-star${isFavorite ? ' favorited' : ''}" onclick="event.stopPropagation(); toggleFavorite('${safeName}')" title="즐겨찾기">★</button>
-                <span class="favorite-badge">★</span>
+                ${isFavorite ? '<span class="favorite-badge">★</span>' : ''}
                 ${isNew ? '<span class="sheet-card-new">NEW</span>' : ''}
                 <div class="sheet-card-header" onclick="handleSheetCardClick('${safeName}')">
                     <div class="sheet-card-name" ondblclick="event.stopPropagation(); startRenameSheetCard(event, '${safeName}')">${escHtml(name)}</div>
@@ -1409,7 +1408,7 @@ function renderSheetCardHtml(name, sheetAutoIndex, iconLayout) {
                     <div class="sheet-card-info">${sheet.headers.length}열</div>
                     <div class="sheet-card-cols">${escHtml(colPreview)}</div>
                 </div>
-                <button class="sheet-card-delete" onclick="event.stopPropagation(); confirmDeleteSheet('${safeName}')" title="시트 삭제">&times;</button>
+                <button class="sheet-card-menu" onclick="event.stopPropagation(); showCardMenu(event, '${safeName}', 'sheet')" title="메뉴">⋮</button>
             </div>`;
     } else if (sheetViewMode === VIEW_MODE.ICON) {
         const sheetPos = sheetIconPositions[name] || {};
@@ -1438,10 +1437,9 @@ function renderSheetCardHtml(name, sheetAutoIndex, iconLayout) {
             <div class="${commonClass}" ${commonAttrs}
                  onclick="if(toggleMultiSelect(event, '${safeName}')) return; clearNewBadge('${safeName}')">
                 <input type="checkbox" class="sheet-card-checkbox" data-sheet="${escHtml(name)}" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleSheetSelect('${safeName}')">
-                <button class="sheet-card-delete" onclick="event.stopPropagation(); confirmDeleteSheet('${safeName}')" title="시트 삭제">&times;</button>
-                <button class="sheet-card-star${isFavorite ? ' favorited' : ''}" onclick="event.stopPropagation(); toggleFavorite('${safeName}')" title="즐겨찾기">★</button>
-                <span class="favorite-badge">★</span>
+                ${isFavorite ? '<span class="favorite-badge">★</span>' : ''}
                 ${isNew ? '<span class="sheet-card-new">NEW</span>' : ''}
+                <button class="sheet-card-menu" onclick="event.stopPropagation(); showCardMenu(event, '${safeName}', 'sheet')" title="메뉴">⋮</button>
                 <div onclick="handleSheetCardClick('${safeName}')">
                     <div class="sheet-card-header">
                         <div class="sheet-card-name" ondblclick="event.stopPropagation(); startRenameSheetCard(event, '${safeName}')">${escHtml(name)}</div>
@@ -2402,6 +2400,59 @@ function closeViewDropdownOnClickOutside(e) {
     if (wrapper && !wrapper.contains(e?.target)) {
         closeViewDropdown();
     }
+}
+
+// 카드 메뉴 표시 (⋮ 버튼)
+function showCardMenu(event, itemName, itemType) {
+    event.stopPropagation();
+    event.preventDefault();
+
+    // 기존 메뉴 제거
+    closeCardMenu();
+
+    const menu = document.createElement('div');
+    menu.className = 'card-menu-popup';
+    menu.id = 'cardMenuPopup';
+
+    const safeName = itemName.replace(/'/g, "\\'");
+    const isFavorite = favoriteSheets.has(itemName);
+
+    if (itemType === 'sheet') {
+        menu.innerHTML = `
+            <div class="card-menu-item" onclick="handleSheetCardClick('${safeName}'); closeCardMenu();">📄 열기</div>
+            <div class="card-menu-item" onclick="toggleFavorite('${safeName}'); closeCardMenu();">${isFavorite ? '⭐ 즐겨찾기 해제' : '☆ 즐겨찾기'}</div>
+            <div class="card-menu-item" onclick="startRenameSheetCard(event, '${safeName}'); closeCardMenu();">✏️ 이름 변경</div>
+            <div class="card-menu-item" onclick="showMoveSelectedToFolderModal(['${safeName}']); closeCardMenu();">📁 폴더 이동</div>
+            <div class="card-menu-divider"></div>
+            <div class="card-menu-item danger" onclick="confirmDeleteSheet('${safeName}'); closeCardMenu();">🗑️ 삭제</div>
+        `;
+    }
+
+    document.body.appendChild(menu);
+
+    // 위치 설정
+    const rect = event.target.getBoundingClientRect();
+    menu.style.top = rect.bottom + 5 + 'px';
+    menu.style.left = rect.left + 'px';
+
+    // 화면 밖으로 나가면 조정
+    const menuRect = menu.getBoundingClientRect();
+    if (menuRect.right > window.innerWidth) {
+        menu.style.left = (rect.right - menuRect.width) + 'px';
+    }
+    if (menuRect.bottom > window.innerHeight) {
+        menu.style.top = (rect.top - menuRect.height - 5) + 'px';
+    }
+
+    // 외부 클릭 시 닫기
+    setTimeout(() => {
+        document.addEventListener('click', closeCardMenu, { once: true });
+    }, 10);
+}
+
+function closeCardMenu() {
+    const menu = document.getElementById('cardMenuPopup');
+    if (menu) menu.remove();
 }
 
 // 전체 필터 초기화
