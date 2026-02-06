@@ -7452,10 +7452,11 @@ async function syncSheetsToServer() {
         const sheet = WB[sheetName];
         if (!sheet || !sheet.data) continue;
 
+        // Firestore는 중첩 배열을 지원하지 않으므로 JSON 문자열로 변환
         const docData = {
             name: sheetName,
             headers: sheet.headers || [],
-            data: sheet.data || [],
+            dataJson: JSON.stringify(sheet.data || []),  // 중첩 배열 → JSON 문자열
             styles: sheet.styles || {},
             colWidths: sheet.colWidths || [],
             rowHeights: sheet.rowHeights || [],
@@ -9078,7 +9079,7 @@ async function loadSheetsFromFirestore() {
                         }
                     });
                     
-                    // 구버전 호환
+                    // 구버전 호환 - rows 서브컬렉션 시도
                     if (allRows.length === 0) {
                         const rowsSnapshot = await db.collection('sheets')
                             .doc(sheetName)
@@ -9089,7 +9090,22 @@ async function loadSheetsFromFirestore() {
                             allRows.push(doc.data().data);
                         });
                     }
-                    
+
+                    // 새 방식 - dataJson 필드에서 직접 로드
+                    if (allRows.length === 0 && sheetData.dataJson) {
+                        try {
+                            const parsed = JSON.parse(sheetData.dataJson);
+                            allRows.push(...parsed);
+                        } catch (e) {
+                            console.error('dataJson 파싱 오류:', e);
+                        }
+                    }
+
+                    // 기존 방식 - data 필드에서 직접 로드
+                    if (allRows.length === 0 && sheetData.data && Array.isArray(sheetData.data)) {
+                        allRows.push(...sheetData.data);
+                    }
+
                     return { sheetName, sheetData, allRows, success: true };
                 } catch (err) {
                     console.error(`시트 '${sheetName}' 로드 오류:`, err);
