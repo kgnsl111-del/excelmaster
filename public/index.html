@@ -7435,6 +7435,11 @@ async function performAutoSync() {
 
 // 시트 서버 동기화
 async function syncSheetsToServer() {
+    if (!currentUser || !db) {
+        console.warn('동기화 건너뜀: 로그인 필요');
+        return;
+    }
+
     const localSheetNames = new Set(Object.keys(WB).filter(n => WB[n] && WB[n].data));
 
     // 1. 서버에 있는 시트 목록 가져오기
@@ -7483,6 +7488,11 @@ async function syncSheetsToServer() {
 
 // 파일 보관함 서버 동기화
 async function syncFilesToServer() {
+    if (!currentUser || !db) {
+        console.warn('동기화 건너뜀: 로그인 필요');
+        return;
+    }
+
     // 1. 서버에 있는 파일 목록 가져오기
     const snapshot = await db.collection('userFiles').where('userId', '==', currentUser.uid).get();
     const serverFileIds = new Set();
@@ -7560,6 +7570,11 @@ async function syncFilesToServer() {
 
 // 원본 파일 서버 동기화
 async function syncRawFilesToServer() {
+    if (!currentUser || !db) {
+        console.warn('동기화 건너뜀: 로그인 필요');
+        return;
+    }
+
     const localRawFileNames = new Set(Object.keys(rawFiles));
 
     // 1. 서버에 있는 원본 파일 목록 가져오기
@@ -8525,6 +8540,31 @@ function logout() {
         .then(() => {
             console.log('로그아웃 성공');
             isAppEntered = false; // 진입 플래그 초기화
+            pendingUser = null;
+            currentUser = null;
+
+            // 전역 데이터 초기화
+            WB = {};
+            SHEET = '';
+            fileStorage = [];
+            rawFiles = {};
+            sheetFolders = {};
+            fileFolders = {};
+            sheetToFolder = {};
+            fileToFolder = {};
+            favoriteSheets = new Set();
+            favoriteFiles = new Set();
+            fileGroups = {};
+            sheetToFileGroup = {};
+            pendingSyncTypes.clear();
+
+            // 화면 전환
+            document.getElementById('mainScreen').style.display = 'none';
+            document.getElementById('detailScreen').style.display = 'none';
+            document.getElementById('loginScreen').style.display = 'flex';
+            updateLoginScreen();
+
+            toast('로그아웃 완료');
         })
         .catch((error) => {
             console.error('로그아웃 오류:', error);
@@ -8599,10 +8639,13 @@ function enterApp() {
     loadFileGroupsFromStorage();
     startAutoSave();
 
-    // 바로 화면 렌더링 (서버 자동 확인 안 함)
+    // 바로 화면 렌더링
     renderMainScreen();
 
-    if (hasLocalData) {
+    // 서버에 데이터가 있으면 불러올지 확인
+    if (!hasLocalData) {
+        checkAndLoadFromServer();
+    } else {
         toast('이전 데이터 복원됨');
     }
 }
@@ -8610,29 +8653,27 @@ function enterApp() {
 // 서버에 데이터가 있으면 자동 불러오기
 async function checkAndLoadFromServer() {
     if (!db || !currentUser) {
-        renderMainScreen();
         return;
     }
-    
+
     try {
-        // 서버에 시트가 있는지 확인
-        const sheetsSnapshot = await db.collection('sheets').limit(1).get();
-        
+        // 현재 사용자의 시트가 있는지 확인
+        const sheetsSnapshot = await db.collection('sheets')
+            .where('userId', '==', currentUser.uid)
+            .limit(1)
+            .get();
+
         if (!sheetsSnapshot.empty) {
             // 서버에 데이터가 있으면 불러올지 확인
             const loadFromServer = confirm('서버에 저장된 데이터가 있습니다.\n\n불러오시겠습니까?');
-            
+
             if (loadFromServer) {
                 await loadSheetsFromFirestore();
-            } else {
                 renderMainScreen();
             }
-        } else {
-            renderMainScreen();
         }
     } catch (error) {
         console.error('서버 확인 오류:', error);
-        renderMainScreen();
     }
 }
 
