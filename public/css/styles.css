@@ -6821,6 +6821,48 @@
             50% { opacity: 0.5; }
         }
 
+        /* ========== 동기화 상태 스타일 ========== */
+        .sync-status {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            background: var(--retro-mint);
+            border: 1px solid var(--retro-border);
+            border-radius: 4px;
+            font-size: 11px;
+            color: var(--retro-teal);
+            transition: all 0.2s;
+        }
+        .sync-status.syncing {
+            background: var(--retro-blue);
+            border-color: var(--retro-blue-dark);
+            color: white;
+        }
+        .sync-status.syncing .sync-icon {
+            animation: spin 1s linear infinite;
+        }
+        .sync-status.synced {
+            background: var(--retro-green);
+            border-color: var(--retro-green-dark);
+            color: white;
+        }
+        .sync-status.error {
+            background: var(--retro-coral);
+            border-color: var(--retro-coral-dark);
+            color: white;
+        }
+        .sync-status.offline {
+            background: var(--retro-warm-gray);
+            border-color: var(--retro-warm-gray);
+            color: white;
+            opacity: 0.7;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
         /* 자동 저장 모달 */
         .autosave-modal .modal-content.autosave-content {
             max-width: 350px;

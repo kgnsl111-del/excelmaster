@@ -398,6 +398,10 @@
                         <span class="auto-save-icon">💾</span>
                         <span class="auto-save-text" id="autoSaveText">자동저장 ON</span>
                     </div>
+                    <div class="sync-status" id="syncStatus" title="서버 동기화 상태">
+                        <span class="sync-icon" id="syncIcon">☁️</span>
+                        <span class="sync-text" id="syncText">동기화 대기</span>
+                    </div>
                     <div class="action-group">
                         <button class="action-btn merge-action-btn" id="mergeActionBtn" onclick="openManualMergeModal()" style="background:var(--retro-coral);color:white;display:none;">병합</button>
                         <button class="action-btn" onclick="resetAllFilters()" style="background:var(--retro-mustard);color:white;">필터 초기화</button>
@@ -7431,9 +7435,15 @@ async function performAutoSync() {
 
 // 시트 서버 동기화
 async function syncSheetsToServer() {
-    const sheetNames = Object.keys(WB).filter(n => WB[n] && WB[n].data);
+    const localSheetNames = new Set(Object.keys(WB).filter(n => WB[n] && WB[n].data));
 
-    for (const sheetName of sheetNames) {
+    // 1. 서버에 있는 시트 목록 가져오기
+    const snapshot = await db.collection('sheets').where('userId', '==', currentUser.uid).get();
+    const serverSheetNames = new Set();
+    snapshot.forEach(doc => serverSheetNames.add(doc.id));
+
+    // 2. 로컬 시트 저장
+    for (const sheetName of localSheetNames) {
         const sheet = WB[sheetName];
         if (!sheet || !sheet.data) continue;
 
@@ -7452,6 +7462,14 @@ async function syncSheetsToServer() {
         await db.collection('sheets').doc(sheetName).set(docData);
     }
 
+    // 3. 서버에만 있는 (삭제된) 시트 삭제
+    for (const serverName of serverSheetNames) {
+        if (!localSheetNames.has(serverName)) {
+            await db.collection('sheets').doc(serverName).delete();
+            console.log('서버에서 시트 삭제:', serverName);
+        }
+    }
+
     // 메타 정보도 저장
     await db.collection('userMeta').doc(currentUser.uid).set({
         sheetFolders: sheetFolders || {},
@@ -7465,7 +7483,73 @@ async function syncSheetsToServer() {
 
 // 파일 보관함 서버 동기화
 async function syncFilesToServer() {
-    // 파일 보관함은 이미 Storage에 저장되므로 메타 정보만 동기화
+    // 1. 서버에 있는 파일 목록 가져오기
+    const snapshot = await db.collection('userFiles').where('userId', '==', currentUser.uid).get();
+    const serverFileIds = new Set();
+    snapshot.forEach(doc => serverFileIds.add(doc.id));
+
+    // 2. 로컬 파일 ID 목록
+    const localFileIds = new Set(fileStorage.filter(f => f.id).map(f => f.id));
+
+    // 3. 로컬 파일들을 서버에 저장
+    const localFiles = fileStorage.filter(f => f.isLocal);
+    for (const file of localFiles) {
+        try {
+            const fileId = file.id || ('file_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9));
+
+            const fileDoc = {
+                id: fileId,
+                name: file.name,
+                type: file.type,
+                size: file.size,
+                uploadedAt: file.uploadedAt || new Date().toISOString(),
+                textContent: file.textContent || null,
+                userId: currentUser.uid,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            // 파일 크기가 작으면 Firestore에 직접 저장
+            if (file.data && file.size < 500000) {
+                fileDoc.data = file.data;
+            } else if (file.data && storage) {
+                // 큰 파일은 Storage에 저장
+                const storagePath = `users/${currentUser.uid}/files/${fileId}`;
+                await storage.ref(storagePath).putString(file.data, 'data_url');
+                fileDoc.storagePath = storagePath;
+            }
+
+            await db.collection('userFiles').doc(fileId).set(fileDoc);
+
+            // 로컬 파일에 id와 isLocal 업데이트
+            file.id = fileId;
+            file.isLocal = false;
+            localFileIds.add(fileId);
+
+        } catch (err) {
+            console.error('파일 동기화 실패:', file.name, err);
+        }
+    }
+
+    // 4. 서버에만 있는 (삭제된) 파일 삭제
+    for (const serverId of serverFileIds) {
+        if (!localFileIds.has(serverId)) {
+            try {
+                // Storage에서도 삭제 시도
+                const doc = snapshot.docs.find(d => d.id === serverId);
+                if (doc && doc.data().storagePath && storage) {
+                    try {
+                        await storage.ref(doc.data().storagePath).delete();
+                    } catch (e) { /* 무시 */ }
+                }
+                await db.collection('userFiles').doc(serverId).delete();
+                console.log('서버에서 파일 삭제:', serverId);
+            } catch (e) {
+                console.error('서버 파일 삭제 실패:', serverId, e);
+            }
+        }
+    }
+
+    // 메타 정보 동기화
     await db.collection('userSettings').doc(currentUser.uid).set({
         fileFolders: fileFolders || {},
         fileToFolder: fileToFolder || {},
@@ -7476,9 +7560,18 @@ async function syncFilesToServer() {
 
 // 원본 파일 서버 동기화
 async function syncRawFilesToServer() {
-    const rawFileNames = Object.keys(rawFiles);
+    const localRawFileNames = new Set(Object.keys(rawFiles));
 
-    for (const fileName of rawFileNames) {
+    // 1. 서버에 있는 원본 파일 목록 가져오기
+    const snapshot = await db.collection('rawFiles').where('userId', '==', currentUser.uid).get();
+    const serverRawFiles = new Map(); // docId -> fileName
+    snapshot.forEach(doc => {
+        const data = doc.data();
+        serverRawFiles.set(doc.id, data.name || doc.id);
+    });
+
+    // 2. 로컬 원본 파일 저장
+    for (const fileName of localRawFileNames) {
         const fileData = rawFiles[fileName];
         if (!fileData) continue;
 
@@ -7504,6 +7597,14 @@ async function syncRawFilesToServer() {
 
         const docId = fileName.replace(/[\/\\\.]/g, '_');
         await db.collection('rawFiles').doc(docId).set(docData);
+    }
+
+    // 3. 서버에만 있는 (삭제된) 원본 파일 삭제
+    for (const [docId, fileName] of serverRawFiles) {
+        if (!localRawFileNames.has(fileName)) {
+            await db.collection('rawFiles').doc(docId).delete();
+            console.log('서버에서 원본 파일 삭제:', fileName);
+        }
     }
 }
 
@@ -9924,12 +10025,15 @@ async function saveFileToStorage(file) {
                 isLocal: true
             };
             fileStorage.push(fileData);
-            
+
             // 캐시 무효화 후 탭 전환 및 렌더링
             invalidateFileRenderCache();
             switchMainTab('files');
             renderFileStoragePanel();
             toast(`'${file.name}' 보관함에 저장됨`);
+
+            // 자동 동기화 예약
+            scheduleAutoSync('files');
             resolve(fileData);
         };
         reader.onerror = reject;
@@ -11405,6 +11509,9 @@ async function deleteStoredFile(idx) {
         invalidateFileRenderCache();
         renderFileStoragePanel();
         toast('파일 삭제됨');
+
+        // 자동 동기화 예약
+        scheduleAutoSync('files');
     } catch (error) {
         console.error('삭제 오류:', error);
         toast('삭제 실패: ' + error.message);
