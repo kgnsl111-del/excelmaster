@@ -123,6 +123,12 @@
         let autoSaveTimer = null; // 자동 저장 타이머
         let lastAutoSave = null; // 마지막 자동 저장 시간
         let hasUnsavedChanges = false; // 저장되지 않은 변경사항 여부
+
+        // 실시간 자동 동기화 시스템
+        let autoSyncEnabled = true; // 자동 동기화 활성화 여부
+        let autoSyncTimer = null; // 자동 동기화 타이머 (디바운스용)
+        const AUTO_SYNC_DELAY = 3000; // 변경 후 3초 뒤 동기화
+        let pendingSyncTypes = new Set(); // 대기 중인 동기화 타입 (sheets, files, rawfiles)
         
         // 메모리 모니터링
         function checkMemoryUsage() {
@@ -308,9 +314,6 @@
                     <input type="file" id="mainFileInput" class="file-input" accept=".xlsx,.xls,.csv,.tsv,.txt,.pdf,.pptx,.docx,.html,.htm">
                     <button class="main-btn compact" onclick="document.getElementById('mainFileInput').click()">📁 열기</button>
                     <button class="main-btn compact" onclick="addSheetFromMain()">➕ 새시트</button>
-
-                    <button class="main-btn compact" onclick="simpleServerSave()" style="background:var(--retro-green);color:white;">⬆️ 저장</button>
-                    <button class="main-btn compact" onclick="simpleServerLoad()" style="background:var(--retro-blue);color:white;">⬇️ 불러오기</button>
 
                     <!-- 기간 드롭다운 -->
                     <div class="date-dropdown-wrapper">
@@ -7368,6 +7371,173 @@ function markAsChanged() {
     hasUnsavedChanges = true;
 }
 
+// ========== 실시간 자동 동기화 시스템 ==========
+
+// 동기화 예약 (디바운스 - 3초 후 실행)
+function scheduleAutoSync(type) {
+    if (!autoSyncEnabled || !currentUser) return;
+
+    pendingSyncTypes.add(type);
+    updateSyncStatus('syncing', '변경 감지됨...');
+
+    // 기존 타이머 취소
+    if (autoSyncTimer) {
+        clearTimeout(autoSyncTimer);
+    }
+
+    // 3초 후 동기화 실행
+    autoSyncTimer = setTimeout(async () => {
+        await performAutoSync();
+    }, AUTO_SYNC_DELAY);
+}
+
+// 자동 동기화 실행
+async function performAutoSync() {
+    if (!currentUser || pendingSyncTypes.size === 0) return;
+
+    const typesToSync = new Set(pendingSyncTypes);
+    pendingSyncTypes.clear();
+
+    updateSyncStatus('syncing', '동기화 중...');
+
+    try {
+        const promises = [];
+
+        // 시트 동기화
+        if (typesToSync.has('sheets')) {
+            promises.push(syncSheetsToServer());
+        }
+
+        // 파일 보관함 동기화
+        if (typesToSync.has('files')) {
+            promises.push(syncFilesToServer());
+        }
+
+        // 원본 파일 동기화
+        if (typesToSync.has('rawfiles')) {
+            promises.push(syncRawFilesToServer());
+        }
+
+        await Promise.all(promises);
+
+        updateSyncStatus('synced', '동기화 완료');
+        console.log('자동 동기화 완료:', Array.from(typesToSync).join(', '));
+
+    } catch (error) {
+        console.error('자동 동기화 오류:', error);
+        updateSyncStatus('error', '동기화 실패');
+    }
+}
+
+// 시트 서버 동기화
+async function syncSheetsToServer() {
+    const sheetNames = Object.keys(WB).filter(n => WB[n] && WB[n].data);
+
+    for (const sheetName of sheetNames) {
+        const sheet = WB[sheetName];
+        if (!sheet || !sheet.data) continue;
+
+        const docData = {
+            name: sheetName,
+            headers: sheet.headers || [],
+            data: sheet.data || [],
+            styles: sheet.styles || {},
+            colWidths: sheet.colWidths || [],
+            rowHeights: sheet.rowHeights || [],
+            createdAt: sheet.createdAt || firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            userId: currentUser.uid
+        };
+
+        await db.collection('sheets').doc(sheetName).set(docData);
+    }
+
+    // 메타 정보도 저장
+    await db.collection('userMeta').doc(currentUser.uid).set({
+        sheetFolders: sheetFolders || {},
+        sheetToFolder: sheetToFolder || {},
+        favoriteSheets: Array.from(favoriteSheets || []),
+        fileGroups: fileGroups || {},
+        sheetToFileGroup: sheetToFileGroup || {},
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+}
+
+// 파일 보관함 서버 동기화
+async function syncFilesToServer() {
+    // 파일 보관함은 이미 Storage에 저장되므로 메타 정보만 동기화
+    await db.collection('userSettings').doc(currentUser.uid).set({
+        fileFolders: fileFolders || {},
+        fileToFolder: fileToFolder || {},
+        favoriteFiles: Array.from(favoriteFiles || []),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+}
+
+// 원본 파일 서버 동기화
+async function syncRawFilesToServer() {
+    const rawFileNames = Object.keys(rawFiles);
+
+    for (const fileName of rawFileNames) {
+        const fileData = rawFiles[fileName];
+        if (!fileData) continue;
+
+        const sheetsToSave = {};
+        for (const [sheetName, sheetData] of Object.entries(fileData.sheets || {})) {
+            sheetsToSave[sheetName] = {
+                headers: sheetData.headers || [],
+                dataJson: JSON.stringify(sheetData.data || []),
+                colWidths: sheetData.colWidths || [],
+                rowHeights: sheetData.rowHeights || []
+            };
+        }
+
+        const docData = {
+            name: fileData.name,
+            displayName: fileData.displayName || fileName,
+            sheets: sheetsToSave,
+            lastUpdated: firebase.firestore.FieldValue.serverTimestamp(),
+            totalRows: fileData.totalRows || 0,
+            sourceFiles: fileData.sourceFiles || [fileName],
+            userId: currentUser.uid
+        };
+
+        const docId = fileName.replace(/[\/\\\.]/g, '_');
+        await db.collection('rawFiles').doc(docId).set(docData);
+    }
+}
+
+// 동기화 상태 UI 업데이트
+function updateSyncStatus(status, message) {
+    const syncEl = document.getElementById('syncStatus');
+    if (!syncEl) return;
+
+    syncEl.classList.remove('syncing', 'synced', 'error', 'offline');
+
+    switch (status) {
+        case 'syncing':
+            syncEl.classList.add('syncing');
+            syncEl.innerHTML = '🔄 ' + (message || '동기화 중...');
+            syncEl.title = message || '서버와 동기화 중...';
+            break;
+        case 'synced':
+            syncEl.classList.add('synced');
+            syncEl.innerHTML = '☁️ ' + (message || '동기화됨');
+            syncEl.title = message || '서버와 동기화됨';
+            break;
+        case 'error':
+            syncEl.classList.add('error');
+            syncEl.innerHTML = '⚠️ ' + (message || '오류');
+            syncEl.title = message || '동기화 오류';
+            break;
+        case 'offline':
+            syncEl.classList.add('offline');
+            syncEl.innerHTML = '📴 오프라인';
+            syncEl.title = '오프라인 모드';
+            break;
+    }
+}
+
 // ========== 파일 그룹 시스템 ==========
 
 // 파일 그룹에 시트 등록
@@ -7622,6 +7792,9 @@ function saveToLocalStorage() {
         }
         localStorage.setItem('excelmaster_hiddenCols', JSON.stringify(hiddenColsObj));
         
+        // 자동 동기화 예약 (시트 데이터 변경)
+        scheduleAutoSync('sheets');
+
     } catch (e) {
         console.error('로컬 저장소 저장 오류:', e);
         // 용량 초과 시 이전 데이터 삭제 시도
@@ -15716,6 +15889,8 @@ function downloadRawFile(fileName) {
 function saveRawFilesToLocalStorage() {
     try {
         localStorage.setItem('excelmaster_rawfiles', JSON.stringify(rawFiles));
+        // 자동 동기화 예약 (원본 파일 변경)
+        scheduleAutoSync('rawfiles');
     } catch (e) {
         console.error('원본 파일 로컬 저장 오류:', e);
     }
