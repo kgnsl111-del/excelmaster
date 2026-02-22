@@ -162,9 +162,28 @@
             }, GC_INTERVAL);
         }
     </script>
+    <script>
+    // autoLogin: 로그인 화면을 렌더링 전에 숨기기
+    if(new URLSearchParams(location.search).get('autoLogin')==='true'){document.documentElement.classList.add('autoLogin');}
+    </script>
+    <style>
+    html.autoLogin #loginScreen{display:none!important}
+    #autoLoginOverlay{position:fixed;inset:0;z-index:99999;display:none;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a3a3a 0%,#2d5a5a 50%,#1a3a3a 100%)}
+    html.autoLogin #autoLoginOverlay{display:flex!important}
+    @keyframes alSpin{0%{transform:rotate(0deg)}50%{transform:rotate(15deg)}100%{transform:rotate(0deg)}}
+    </style>
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
+    <!-- autoLogin 로딩 오버레이 -->
+    <div id="autoLoginOverlay">
+        <div style="text-align:center">
+            <div style="font-size:3rem;margin-bottom:1rem;display:inline-block;animation:alSpin 1.5s ease-in-out infinite">📗</div>
+            <h1 style="color:#a8d8d8;font-family:sans-serif;font-size:1.5rem;font-weight:700;margin-bottom:0.5rem">엑셀마스터 접속 중...</h1>
+            <p style="color:#7ab8b8;font-size:0.9rem">자동 로그인 진행 중</p>
+        </div>
+    </div>
+
     <!-- 로그인 화면 -->
     <div id="loginScreen">
         <div class="login-box">
@@ -307,6 +326,10 @@
             <!-- 간소화된 단일 헤더 -->
             <div class="main-header-row single">
                 <div class="main-title">엑셀마스터</div>
+                <div class="app-nav-links" style="display:flex;gap:6px;align-items:center;">
+                    <a href="https://gagyebu-2026.web.app?autoLogin=true" class="app-nav-link" style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:4px;color:#fff;text-decoration:none;font-size:11px;font-weight:600;white-space:nowrap;transition:background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">📒 가계부</a>
+                    <a href="https://samguk-e8470.web.app?autoLogin=true" class="app-nav-link" style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:4px;color:#fff;text-decoration:none;font-size:11px;font-weight:600;white-space:nowrap;transition:background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">⚔️ 업무</a>
+                </div>
 
                 <div class="header-compact-group">
                     <input type="text" id="mainSearchInput" class="main-search compact" placeholder="검색..." oninput="handleMainSearchInput(event)" onkeydown="handleMainSearchKeydown(event)" oncompositionstart="isComposing=true" oncompositionend="isComposing=false; doMainSearch()">
@@ -8846,20 +8869,51 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
     
+    // autoLogin 확인
+    const urlParams = new URLSearchParams(window.location.search);
+    const isAutoLogin = urlParams.get('autoLogin') === 'true';
+
+    // autoLogin이면 URL에서 파라미터 제거
+    if (isAutoLogin) {
+        window.history.replaceState({}, '', window.location.pathname);
+    }
+
+    function removeAutoLoginOverlay() {
+        document.documentElement.classList.remove('autoLogin');
+        const o = document.getElementById('autoLoginOverlay');
+        if (o) o.style.display = 'none';
+    }
+
+    // autoLogin 타임아웃 (60초 후 오버레이 제거)
+    if (isAutoLogin) {
+        setTimeout(removeAutoLoginOverlay, 60000);
+    }
+
     auth.onAuthStateChanged((user) => {
         if (user) {
-            // 로그인됨 - 대기 상태로 저장 (수동 입장 필요)
             pendingUser = user;
-            updateLoginScreen();
+            if (isAutoLogin && !isAppEntered) {
+                // autoLogin: 자동으로 입장
+                enterApp();
+                removeAutoLoginOverlay();
+            } else {
+                updateLoginScreen();
+            }
         } else {
             // 로그아웃됨
             pendingUser = null;
             currentUser = null;
-            isAppEntered = false; // 진입 플래그 초기화
+            isAppEntered = false;
             document.getElementById('loginScreen').style.display = 'flex';
             document.getElementById('mainScreen').style.display = 'none';
             document.getElementById('detailScreen').style.display = 'none';
             updateLoginScreen();
+
+            if (isAutoLogin) {
+                // autoLogin인데 로그인 안됨 → 자동 Google 로그인 시도
+                removeAutoLoginOverlay();
+                googleLogin();
+            }
         }
     });
 });
