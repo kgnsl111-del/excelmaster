@@ -142,15 +142,14 @@
             }
         }
         
-        // 강제 가비지 컬렉션 유도
+        // 메모리 정리 (불필요 참조 해제)
         function forceGarbageCollection() {
-            if (typeof gc === 'function') {
-                gc();
-            } else {
-                // 간접적 GC 유도
-                let temp = [];
-                for (let i = 0; i < 10000; i++) temp.push({});
-                temp = null;
+            // 검색 결과 캐시 정리
+            if (currentSearchResults && currentSearchResults.length > 500) {
+                currentSearchResults.length = 0;
+            }
+            if (currentFileSearchResults && currentFileSearchResults.length > 500) {
+                currentFileSearchResults.length = 0;
             }
         }
         
@@ -3837,7 +3836,9 @@ function performSearchAsync(keyword, resultsSection, resultsContainer, countBadg
             
             // 날짜 필터 적용
             if (hasDateFilter && dateColIdx >= 0) {
-                const cellValue = String(row[dateColIdx] || '');
+                const rawVal = row[dateColIdx];
+                if (rawVal == null || rawVal === '') continue;
+                const cellValue = typeof rawVal === 'string' ? rawVal : String(rawVal);
                 const cellDate = parseDateString(cellValue);
                 if (cellDate) {
                     if (fromDate && cellDate < fromDate) continue;
@@ -3853,7 +3854,10 @@ function performSearchAsync(keyword, resultsSection, resultsContainer, countBadg
                 let found = false;
                 for (let j = 0; j < rowLen; j++) {
                     const cellValue = row[j];
-                    if (cellValue != null && String(cellValue).toLowerCase().includes(keywordLower)) {
+                    if (cellValue == null) continue;
+                    // typeof 체크로 불필요한 String() 변환 회피
+                    const str = typeof cellValue === 'string' ? cellValue : String(cellValue);
+                    if (str.length >= keyword.length && str.toLowerCase().includes(keywordLower)) {
                         found = true;
                         break;
                     }
@@ -5527,9 +5531,13 @@ function downloadExcel() {
     }, 50);
 }
 
-function renderSheetTabs() {
+// renderSheetTabs debounce: 짧은 시간 내 중복 호출 방지
+let _renderSheetTabsTimer = null;
+let _renderSheetTabsPending = false;
+const _origRenderSheetTabs = function() {
     const container = document.getElementById('sheetTabsContainer');
     if (!container) return;
+    _renderSheetTabsPending = false;
     const names = Object.keys(WB);
     const p = [];
     for (let i = 0; i < names.length; i++) {
@@ -5552,6 +5560,12 @@ function renderSheetTabs() {
             renderSpreadsheet();
         }
     }
+};
+function renderSheetTabs() {
+    if (_renderSheetTabsPending) return;
+    _renderSheetTabsPending = true;
+    if (_renderSheetTabsTimer) cancelAnimationFrame(_renderSheetTabsTimer);
+    _renderSheetTabsTimer = requestAnimationFrame(_origRenderSheetTabs);
 }
 
 // 시트 이름 변경 시작 (탭에서)
@@ -7251,18 +7265,23 @@ function loadTrashFromStorage() {
 
 // 자동 저장 시작
 function startAutoSave() {
-    if (autoSaveTimer) clearInterval(autoSaveTimer);
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
 
     if (!autoSaveEnabled) {
         updateAutoSaveStatus('OFF');
         return;
     }
 
-    autoSaveTimer = setInterval(async () => {
-        if (hasUnsavedChanges && currentUser) {
-            await performAutoSave();
-        }
-    }, autoSaveInterval * 60 * 1000);
+    // setTimeout 체인으로 변경: 이전 저장 완료 후 다음 타이머 시작 (겹침 방지)
+    function scheduleNextAutoSave() {
+        autoSaveTimer = setTimeout(async () => {
+            if (hasUnsavedChanges && currentUser) {
+                await performAutoSave();
+            }
+            if (autoSaveEnabled) scheduleNextAutoSave();
+        }, autoSaveInterval * 60 * 1000);
+    }
+    scheduleNextAutoSave();
 
     updateAutoSaveStatus('ON');
 }
@@ -8127,24 +8146,25 @@ function initModalDrag() {
         e.preventDefault();
     });
     
-    document.addEventListener('mousemove', (e) => {
-        if (!isDraggingModal) return;
-        
-        const modalContent = document.querySelector('#uploadReviewModal .modal-content');
-        let newX = e.clientX - modalDragOffsetX;
-        let newY = e.clientY - modalDragOffsetY;
-        
-        // 화면 밖으로 나가지 않도록 제한
-        newX = Math.max(0, Math.min(newX, window.innerWidth - modalContent.offsetWidth));
-        newY = Math.max(0, Math.min(newY, window.innerHeight - 50));
-        
-        modalContent.style.left = newX + 'px';
-        modalContent.style.top = newY + 'px';
-    });
-    
-    document.addEventListener('mouseup', () => {
-        isDraggingModal = false;
-    });
+    // 이름 있는 핸들러로 등록 (중복 등록 방지)
+    if (!window._uploadModalMoveHandler) {
+        window._uploadModalMoveHandler = function(e) {
+            if (!isDraggingModal) return;
+            const mc = document.querySelector('#uploadReviewModal .modal-content');
+            if (!mc) return;
+            let newX = e.clientX - modalDragOffsetX;
+            let newY = e.clientY - modalDragOffsetY;
+            newX = Math.max(0, Math.min(newX, window.innerWidth - mc.offsetWidth));
+            newY = Math.max(0, Math.min(newY, window.innerHeight - 50));
+            mc.style.left = newX + 'px';
+            mc.style.top = newY + 'px';
+        };
+        window._uploadModalUpHandler = function() {
+            isDraggingModal = false;
+        };
+        document.addEventListener('mousemove', window._uploadModalMoveHandler);
+        document.addEventListener('mouseup', window._uploadModalUpHandler);
+    }
 }
 
 function closeUploadReview() {
@@ -16576,30 +16596,39 @@ function getColWidth(sheetName, colIndex) {
 }
 
 // 열 너비 자동 계산 (내용 기반)
+// autoFit 캐시: 같은 시트+같은 데이터 길이면 재계산 스킵
+const _autoFitCache = {}; // { sheetName: { rowCount, colCount } }
+
 function autoFitColumnWidths(sheetName) {
     const sheet = WB[sheetName];
     if (!sheet) return;
-    
+
     if (!COL_WIDTHS[sheetName]) {
         COL_WIDTHS[sheetName] = {};
     }
-    
+
     const headers = sheet.headers;
     const data = sheet.data;
-    
+
+    // 캐시 확인: 데이터 크기가 같으면 이미 계산된 것으로 판단
+    const cached = _autoFitCache[sheetName];
+    if (cached && cached.rowCount === data.length && cached.colCount === headers.length) {
+        return;
+    }
+
     // 샘플 행 수 (성능을 위해 처음 100행만 검사)
     const sampleRows = Math.min(data.length, 100);
-    
+
     for (let colIdx = 0; colIdx < headers.length; colIdx++) {
         // 이미 사용자가 설정한 너비가 있으면 건너뛰기
         if (COL_WIDTHS[sheetName][colIdx] !== undefined) continue;
-        
+
         let maxLen = 0;
-        
+
         // 헤더 길이
         const headerText = headers[colIdx] || '';
         maxLen = Math.max(maxLen, getTextWidth(headerText));
-        
+
         // 데이터 길이 (샘플)
         for (let i = 0; i < sampleRows; i++) {
             const cellVal = data[i][colIdx];
@@ -16608,11 +16637,14 @@ function autoFitColumnWidths(sheetName) {
                 maxLen = Math.max(maxLen, textLen);
             }
         }
-        
+
         // 최소 100, 최대 400 (글자 안 잘리게 넉넉히)
         const calculatedWidth = Math.min(400, Math.max(100, maxLen + 24));
         COL_WIDTHS[sheetName][colIdx] = calculatedWidth;
     }
+
+    // 캐시 저장
+    _autoFitCache[sheetName] = { rowCount: data.length, colCount: headers.length };
 }
 
 // 텍스트 너비 계산 (대략적)
@@ -17139,8 +17171,14 @@ function initServerModalDrag() {
         e.preventDefault();
     });
     
+    // 기존 리스너 제거 후 등록 (중복 방지)
+    if (window._serverModalUpHandler) {
+        document.removeEventListener('mousemove', handleServerModalDrag);
+        document.removeEventListener('mouseup', window._serverModalUpHandler);
+    }
+    window._serverModalUpHandler = () => { modalDragState.isDragging = false; };
     document.addEventListener('mousemove', handleServerModalDrag);
-    document.addEventListener('mouseup', () => { modalDragState.isDragging = false; });
+    document.addEventListener('mouseup', window._serverModalUpHandler);
 }
 
 function handleServerModalDrag(e) {
